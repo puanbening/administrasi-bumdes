@@ -101,7 +101,11 @@ with tab1:
                     pdf.cell(38, 10, str(item), border=1)
                 pdf.ln()
 
-            return pdf.output(dest="S").encode("latin-1")
+            with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp:
+                pdf.output(tmp.name)
+                tmp.seek(0)
+                pdf_bytes = tmp.read()
+            return pdf_bytes
 
         pdf_data = buat_pdf(df_final)
         st.download_button(
