@@ -6,8 +6,46 @@ import tempfile
 st.set_page_config(page_title="Administrasi BUMDes", layout="wide")
 st.title("📘 Sistem Akuntansi BUMDes")
 
-# === Sidebar Navigasi ===
-menu = st.sidebar.radio("Navigasi", ["🧾 Jurnal Umum", "📚 Buku Besar"])
+# === Sidebar Navigasi Custom (tanpa bulatan) ===
+st.sidebar.title("📘 Menu")
+
+# CSS biar tombolnya rapi dan punya efek hover
+st.markdown("""
+<style>
+div[data-testid="stSidebar"] button {
+    width: 100%;
+    background-color: #f4f9ff;
+    border: 1px solid #cce1ff;
+    border-radius: 6px;
+    color: #004c99;
+    font-weight: 500;
+    margin-bottom: 6px;
+    transition: 0.2s;
+}
+div[data-testid="stSidebar"] button:hover {
+    background-color: #cce1ff;
+    color: #003366;
+}
+div[data-testid="stSidebar"] button:focus {
+    background-color: #b3d4ff !important;
+    color: #002244 !important;
+}
+</style>
+""", unsafe_allow_html=True)
+
+# Simpan halaman aktif di session_state
+if "menu" not in st.session_state:
+    st.session_state.menu = "🧾 Jurnal Umum"
+
+# Tombol klik di sidebar
+if st.sidebar.button("🧾 Jurnal Umum"):
+    st.session_state.menu = "🧾 Jurnal Umum"
+
+if st.sidebar.button("📚 Buku Besar"):
+    st.session_state.menu = "📚 Buku Besar"
+
+# Ambil nilai aktif
+menu = st.session_state.menu
 
 # Inisialisasi data awal
 if "data" not in st.session_state:
