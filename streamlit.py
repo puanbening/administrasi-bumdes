@@ -3,153 +3,113 @@ import pandas as pd
 from fpdf import FPDF
 import tempfile
 
-st.set_page_config(page_title="Jurnal & Buku Besar BUMDes", layout="wide")
-st.title("📘 Sistem Akuntansi Sederhana BUMDes - Januari 2025")
+st.set_page_config(page_title="Administrasi BUMDes", layout="wide")
+st.title("📘 Sistem Akuntansi BUMDes")
 
-# State untuk simpan data
+# Inisialisasi data awal
 if "data" not in st.session_state:
-    st.session_state.data = []
+    st.session_state.data = pd.DataFrame([
+        {"Tanggal": "", "Keterangan": "", "Ref": "", "Debit (Rp)": 0, "Kredit (Rp)": 0}
+    ])
 
-# Tabs utama
+# Fungsi format rupiah
+def format_rupiah(x):
+    return f"Rp {x:,.0f}".replace(",", ".")
+
+# Fungsi styling tabel agar mirip Excel
+def style_excel(df):
+    styled = df.style.set_table_styles([
+        {"selector": "thead th",
+         "props": [("background-color", "#b7e1cd"),
+                   ("color", "black"),
+                   ("border", "1px solid black"),
+                   ("text-align", "center"),
+                   ("font-weight", "bold")]},
+        {"selector": "td",
+         "props": [("border", "1px solid black"),
+                   ("text-align", "center"),
+                   ("padding", "4px")]}
+    ]).format(
+        {"Debit (Rp)": format_rupiah, "Kredit (Rp)": format_rupiah}
+    )
+    return styled
+
 tab1, tab2 = st.tabs(["🧾 Jurnal Umum", "📚 Buku Besar"])
 
-# ============ TAB 1: JURNAL UMUM ============
+# ================= TAB 1 =====================
 with tab1:
-    st.header("🧾 Jurnal Umum")
+    st.header("🧾 Jurnal Umum (Editable Table)")
 
-    with st.form("input_form"):
-        tanggal = st.date_input("Tanggal")
-        keterangan = st.text_input("Keterangan")
-        ref = st.text_input("Ref (misal: 101 untuk Kas)")
-        debit = st.number_input("Debit (Rp)", min_value=0, step=1000)
-        kredit = st.number_input("Kredit (Rp)", min_value=0, step=1000)
-        submitted = st.form_submit_button("Tambah Data")
+    st.info("✏️ Klik langsung di tabel untuk menambah atau mengubah data.")
+    edited_df = st.data_editor(
+        st.session_state.data,
+        num_rows="dynamic",
+        use_container_width=True,
+        key="editable_table",
+        column_config={
+            "Tanggal": st.column_config.TextColumn("Tanggal (misal: 2025-01-01)"),
+            "Keterangan": st.column_config.TextColumn("Keterangan"),
+            "Ref": st.column_config.TextColumn("Ref (contoh: 101)"),
+            "Debit (Rp)": st.column_config.NumberColumn("Debit (Rp)", step=1000),
+            "Kredit (Rp)": st.column_config.NumberColumn("Kredit (Rp)", step=1000),
+        }
+    )
 
-        if submitted:
-            st.session_state.data.append({
-                "Tanggal": tanggal,
-                "Keterangan": keterangan,
-                "Ref": ref,
-                "Debit (Rp)": debit,
-                "Kredit (Rp)": kredit
-            })
-            st.success("✅ Data berhasil ditambahkan!")
+    st.session_state.data = edited_df
 
-    if st.session_state.data:
-        df = pd.DataFrame(st.session_state.data)
-        st.dataframe(df, use_container_width=True)
+    # Bersihkan data kosong
+    df_clean = edited_df.dropna(subset=["Keterangan"], how="all")
+    df_clean = df_clean[df_clean["Keterangan"] != ""]
 
-        total_debit = df["Debit (Rp)"].sum()
-        total_kredit = df["Kredit (Rp)"].sum()
-        st.write(f"**Total Debit:** Rp {total_debit:,.0f}")
-        st.write(f"**Total Kredit:** Rp {total_kredit:,.0f}")
+    if not df_clean.empty:
+        total_debit = df_clean["Debit (Rp)"].sum()
+        total_kredit = df_clean["Kredit (Rp)"].sum()
 
-        if st.button("📄 Download PDF Jurnal Umum"):
+        # 🔹 Tambahkan baris total langsung ke bawah tabel
+        total_row = pd.DataFrame({
+            "Tanggal": [""],
+            "Keterangan": ["**TOTAL**"],
+            "Ref": [""],
+            "Debit (Rp)": [total_debit],
+            "Kredit (Rp)": [total_kredit],
+        })
+
+        df_final = pd.concat([df_clean, total_row], ignore_index=True)
+
+        st.write("### Hasil Jurnal")
+        st.dataframe(df_final.style.format({
+            "Debit (Rp)": format_rupiah,
+            "Kredit (Rp)": format_rupiah
+        }))
+
+        # 🔹 Download ke PDF
+        def buat_pdf(df):
             pdf = FPDF()
             pdf.add_page()
-            pdf.set_font("Arial", "B", 14)
-            pdf.cell(200, 10, "Jurnal Umum BUMDes - Januari 2025", ln=True, align="C")
-            pdf.ln(10)
+            pdf.set_font("Arial", size=12)
+            pdf.cell(200, 10, txt="Jurnal Umum BUMDes", ln=True, align="C")
+            pdf.ln(8)
 
-            headers = ["Tanggal", "Keterangan", "Ref", "Debit (Rp)", "Kredit (Rp)"]
-            widths = [25, 70, 20, 35, 35]
-
-            pdf.set_font("Arial", "B", 10)
-            for h, w in zip(headers, widths):
-                pdf.cell(w, 10, h, 1, 0, "C")
+            # Header tabel
+            for col in df.columns:
+                pdf.cell(38, 10, col, border=1)
             pdf.ln()
 
-            pdf.set_font("Arial", "", 9)
+            # Isi tabel
             for _, row in df.iterrows():
-                pdf.cell(25, 10, str(row["Tanggal"]), 1)
-                pdf.cell(70, 10, str(row["Keterangan"]), 1)
-                pdf.cell(20, 10, str(row["Ref"]), 1)
-                pdf.cell(35, 10, f"{int(row['Debit (Rp)']):,}", 1, 0, "R")
-                pdf.cell(35, 10, f"{int(row['Kredit (Rp)']):,}", 1, 0, "R")
+                for item in row:
+                    pdf.cell(38, 10, str(item), border=1)
                 pdf.ln()
 
-            pdf.cell(115, 10, "Jumlah", 1)
-            pdf.cell(35, 10, f"{int(total_debit):,}", 1, 0, "R")
-            pdf.cell(35, 10, f"{int(total_kredit):,}", 1, 0, "R")
+            return pdf.output(dest="S").encode("latin-1")
 
-            temp_file = tempfile.NamedTemporaryFile(delete=False, suffix=".pdf")
-            pdf.output(temp_file.name)
+        pdf_data = buat_pdf(df_final)
+        st.download_button(
+            "📥 Download PDF",
+            data=pdf_data,
+            file_name="jurnal_umum.pdf",
+            mime="application/pdf",
+        )
 
-            with open(temp_file.name, "rb") as f:
-                st.download_button(
-                    label="⬇️ Download PDF Jurnal Umum",
-                    data=f,
-                    file_name="Jurnal_BUMDes_Januari2025.pdf",
-                    mime="application/pdf"
-                )
-
-# ============ TAB 2: BUKU BESAR ============
-with tab2:
-    st.header("📚 Buku Besar")
-
-    if st.session_state.data:
-        df = pd.DataFrame(st.session_state.data)
-
-        grouped = df.groupby("Ref")
-        for ref, group in grouped:
-            st.subheader(f"Nama Akun (Ref): {ref}")
-            st.dataframe(group, use_container_width=True)
-
-            total_debit = group["Debit (Rp)"].sum()
-            total_kredit = group["Kredit (Rp)"].sum()
-
-            saldo = total_debit - total_kredit
-            saldo_text = f"Saldo Akhir: Rp {saldo:,.0f}"
-            if saldo >= 0:
-                st.success(saldo_text)
-            else:
-                st.error(saldo_text)
-
-        # Download PDF Buku Besar
-        if st.button("📘 Download PDF Buku Besar"):
-            pdf = FPDF()
-            pdf.add_page()
-            pdf.set_font("Arial", "B", 14)
-            pdf.cell(200, 10, "Buku Besar BUMDes - Januari 2025", ln=True, align="C")
-            pdf.ln(10)
-
-            for ref, group in grouped:
-                pdf.set_font("Arial", "B", 12)
-                pdf.cell(0, 10, f"Akun No: {ref}", ln=True)
-                pdf.set_font("Arial", "B", 10)
-                headers = ["Tanggal", "Keterangan", "Ref", "Debit (Rp)", "Kredit (Rp)"]
-                widths = [25, 70, 20, 35, 35]
-                for h, w in zip(headers, widths):
-                    pdf.cell(w, 8, h, 1, 0, "C")
-                pdf.ln()
-
-                pdf.set_font("Arial", "", 9)
-                for _, row in group.iterrows():
-                    pdf.cell(25, 8, str(row["Tanggal"]), 1)
-                    pdf.cell(70, 8, str(row["Keterangan"]), 1)
-                    pdf.cell(20, 8, str(row["Ref"]), 1)
-                    pdf.cell(35, 8, f"{int(row['Debit (Rp)']):,}", 1, 0, "R")
-                    pdf.cell(35, 8, f"{int(row['Kredit (Rp)']):,}", 1, 0, "R")
-                    pdf.ln()
-
-                total_debit = group["Debit (Rp)"].sum()
-                total_kredit = group["Kredit (Rp)"].sum()
-                saldo = total_debit - total_kredit
-                pdf.set_font("Arial", "B", 10)
-                pdf.cell(115, 8, "Saldo", 1)
-                pdf.cell(35, 8, f"{int(total_debit):,}", 1, 0, "R")
-                pdf.cell(35, 8, f"{int(total_kredit):,}", 1, 0, "R")
-                pdf.ln(12)
-
-            temp_file = tempfile.NamedTemporaryFile(delete=False, suffix=".pdf")
-            pdf.output(temp_file.name)
-
-            with open(temp_file.name, "rb") as f:
-                st.download_button(
-                    label="⬇️ Download PDF Buku Besar",
-                    data=f,
-                    file_name="Buku_Besar_BUMDes_Januari2025.pdf",
-                    mime="application/pdf"
-                )
     else:
-        st.info("Masukkan data terlebih dahulu di tab **Jurnal Umum**.")
+        st.warning("Belum ada data valid di tabel.")
