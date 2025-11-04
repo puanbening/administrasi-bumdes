@@ -2,53 +2,84 @@ import streamlit as st
 import pandas as pd
 from fpdf import FPDF
 import tempfile
+from st_aggrid import AgGrid, GridOptionsBuilder, GridUpdateMode
 
+# === Konfigurasi dasar ===
 st.set_page_config(page_title="Administrasi BUMDes", layout="wide")
 st.title("📘 Sistem Akuntansi BUMDes")
 
-# === Inisialisasi Data Awal ===
+# === Inisialisasi data awal ===
 if "data" not in st.session_state:
     st.session_state.data = pd.DataFrame([
         {"Tanggal": "", "Keterangan": "", "Ref": "", "Debit (Rp)": 0, "Kredit (Rp)": 0}
     ])
 
-# === Fungsi Format ===
+# === Fungsi format rupiah ===
 def format_rupiah(x):
     try:
         return f"Rp {x:,.0f}".replace(",", ".")
     except Exception:
         return x
 
-# === TAB ===
+# === Styling agar mirip Streamlit ===
+st.markdown("""
+<style>
+.ag-theme-streamlit {
+    --ag-background-color: #F9FAFB; /* latar putih abu lembut */
+    --ag-odd-row-background-color: #FFFFFF;
+    --ag-header-background-color: #E9ECEF; /* mirip header Streamlit */
+    --ag-border-color: #DDDDDD;
+    --ag-header-foreground-color: #000000;
+    --ag-font-family: "Inter", system-ui, sans-serif;
+    --ag-font-size: 14px;
+    --ag-row-hover-color: #EEF6ED; /* hijau muda lembut */
+    --ag-selected-row-background-color: #DDF0DC;
+    --ag-cell-horizontal-padding: 10px;
+    --ag-cell-vertical-padding: 6px;
+    border-radius: 8px;
+}
+</style>
+""", unsafe_allow_html=True)
+
+# === Tabs ===
 tab1, tab2 = st.tabs(["🧾 Jurnal Umum", "📚 Buku Besar"])
 
 with tab1:
     st.header("🧾 Jurnal Umum")
-    st.info("✏️ Klik langsung di tabel untuk menambah atau mengubah data. Tekan Enter sekali lalu klik di luar sel untuk menyimpan otomatis.")
+    st.info("💡 Tekan Enter sekali untuk menyimpan perubahan otomatis, seperti di tabel Streamlit.")
 
-    # 🔁 Buat Data Editor
-    edited_df = st.data_editor(
+    # === Setup Grid AgGrid ===
+    gb = GridOptionsBuilder.from_dataframe(st.session_state.data)
+    gb.configure_default_column(editable=True, resizable=True)
+    gb.configure_grid_options(stopEditingWhenCellsLoseFocus=False)
+    gb.configure_column("Tanggal", header_name="Tanggal (YYYY-MM-DD)")
+    gb.configure_column("Keterangan", header_name="Keterangan")
+    gb.configure_column("Ref", header_name="Ref (contoh: 101)")
+    gb.configure_column("Debit (Rp)", type=["numericColumn"], valueFormatter="value ? value.toLocaleString() : ''")
+    gb.configure_column("Kredit (Rp)", type=["numericColumn"], valueFormatter="value ? value.toLocaleString() : ''")
+
+    grid_options = gb.build()
+
+    grid_response = AgGrid(
         st.session_state.data,
-        num_rows="dynamic",
-        use_container_width=True,
-        key="editable_table",
-        column_config={
-            "Tanggal": st.column_config.TextColumn("Tanggal (misal: 2025-01-01)"),
-            "Keterangan": st.column_config.TextColumn("Keterangan"),
-            "Ref": st.column_config.TextColumn("Ref (contoh: 101)"),
-            "Debit (Rp)": st.column_config.NumberColumn("Debit (Rp)", step=1000, format="%d"),
-            "Kredit (Rp)": st.column_config.NumberColumn("Kredit (Rp)", step=1000, format="%d"),
-        },
+        gridOptions=grid_options,
+        update_mode=GridUpdateMode.VALUE_CHANGED,
+        fit_columns_on_grid_load=True,
+        allow_unsafe_jscode=True,
+        enable_enterprise_modules=False,
+        theme="streamlit",  # ini yang bikin warnanya mirip Streamlit
+        height=320,
+        key="aggrid_table"
     )
 
-    # 🧠 Deteksi perubahan dan simpan otomatis
-    if not edited_df.equals(st.session_state.data):
-        st.session_state.data = edited_df.copy()
+    # === Sinkronisasi otomatis ===
+    new_df = pd.DataFrame(grid_response["data"])
+    if not new_df.equals(st.session_state.data):
+        st.session_state.data = new_df.copy()
         st.toast("💾 Perubahan tersimpan otomatis!", icon="💾")
 
-    # === Bersihkan Data Kosong ===
-    df_clean = edited_df.dropna(subset=["Keterangan"], how="all")
-    df_clean = df_clean[df_clean["Keterangan"].astype(str).str.strip() != ""]
+    # === Bersihkan data kosong ===
+    df_clean = new_df[new_df["Keterangan"].astype(str).str.strip() != ""]
 
     if not df_clean.empty:
         total_debit = df_clean["Debit (Rp)"].sum()
@@ -61,7 +92,6 @@ with tab1:
             "Debit (Rp)": [total_debit],
             "Kredit (Rp)": [total_kredit],
         })
-
         df_final = pd.concat([df_clean, total_row], ignore_index=True)
 
         st.write("### 📊 Hasil Jurnal")
@@ -70,6 +100,7 @@ with tab1:
             "Kredit (Rp)": format_rupiah
         }))
 
+        # === Fungsi buat PDF ===
         def buat_pdf(df):
             pdf = FPDF()
             pdf.add_page()
@@ -101,7 +132,6 @@ with tab1:
             mime="application/pdf",
             use_container_width=True
         )
-
     else:
         st.warning("Belum ada data valid di tabel.")
 
