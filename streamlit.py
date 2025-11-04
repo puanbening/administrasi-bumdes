@@ -21,7 +21,7 @@ def format_rupiah(x):
 
 # ================= TAB 1 =====================
 if menu == "🧾 Jurnal Umum":
-    st.header("🧾 Jurnal Umum (Editable Table)")
+    st.header("🧾 Jurnal Umum")
     st.caption("💡 Setelah mengetik, tekan Enter atau klik di luar sel agar tersimpan.")
 
     # --- Tabel input ---
