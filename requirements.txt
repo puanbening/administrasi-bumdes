@@ -1,4 +1,5 @@
 streamlit
+streamlit-option-menu
 pandas
 fpdf2
 reportlab
