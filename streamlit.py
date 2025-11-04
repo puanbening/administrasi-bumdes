@@ -46,99 +46,90 @@ st.markdown("""
 tab1, tab2 = st.tabs(["🧾 Jurnal Umum", "📚 Buku Besar"])
 
 with tab1:
-    st.header("🧾 Jurnal Umum")
-    st.info("💡 Tekan Enter sekali untuk menyimpan perubahan otomatis, seperti di tabel Streamlit.")
+with tab1:
+    st.header("🧾 Jurnal Umum (Input Transaksi)")
 
-    # Setup Grid AgGrid untuk jurnal umum
-    gb = GridOptionsBuilder.from_dataframe(st.session_state.data)
-    gb.configure_default_column(editable=True, resizable=True)
-    gb.configure_grid_options(stopEditingWhenCellsLoseFocus=False)
-    gb.configure_column("Tanggal", header_name="Tanggal (YYYY-MM-DD)")
-    gb.configure_column("Keterangan", header_name="Keterangan")
-    gb.configure_column("Ref", header_name="Ref (contoh: 101)")
-    gb.configure_column("Debit (Rp)", type=["numericColumn"], valueFormatter="value ? value.toLocaleString() : ''")
-    gb.configure_column("Kredit (Rp)", type=["numericColumn"], valueFormatter="value ? value.toLocaleString() : ''")
+    # Inisialisasi DataFrame jurnal di session_state jika belum ada
+    if "jurnal" not in st.session_state:
+        cols = ["Tanggal", "Keterangan", "Ref", "Debit", "Kredit"]
+        st.session_state.jurnal = pd.DataFrame(columns=cols)
 
-    grid_options = gb.build()
+    # Form input transaksi
+    with st.form("form_input_jurnal"):
+        c1, c2, c3 = st.columns([2, 2, 1])
+        with c1:
+            tgl = st.date_input("Tanggal", value=date.today())
+            ket = st.text_input("Keterangan", placeholder="Deskripsi transaksi")
+        with c2:
+            ref = st.text_input("Ref", placeholder="Mis. JU-1")
+            tipe = st.radio("Tipe", ["Debit", "Kredit"], horizontal=True)
+        with c3:
+            jumlah = st.number_input("Jumlah (Rp)", min_value=0.0, step=1000.0, format="%.0f")
+            submit = st.form_submit_button("Tambah")
 
-    grid_response = AgGrid(
-        st.session_state.data,
-        gridOptions=grid_options,
-        update_mode=GridUpdateMode.VALUE_CHANGED,
-        fit_columns_on_grid_load=True,
-        allow_unsafe_jscode=True,
-        enable_enterprise_modules=False,
-        theme="streamlit",
-        height=320,
-        key="aggrid_table"
-    )
+    if submit:
+        if ket.strip() == "":
+            st.error("Mohon isi kolom keterangan!")
+        elif jumlah <= 0:
+            st.error("Jumlah harus lebih dari nol!")
+        else:
+            debit = jumlah if tipe == "Debit" else 0.0
+            kredit = jumlah if tipe == "Kredit" else 0.0
 
-    # Sinkronisasi otomatis
-    new_df = pd.DataFrame(grid_response["data"])
-    if not new_df.equals(st.session_state.data):
-        st.session_state.data = new_df.copy()
-        st.toast("💾 Perubahan tersimpan otomatis!", icon="💾")
+            new_row = {
+                "Tanggal": tgl,
+                "Keterangan": ket,
+                "Ref": ref,
+                "Debit": debit,
+                "Kredit": kredit,
+            }
+            st.session_state.jurnal = pd.concat(
+                [st.session_state.jurnal, pd.DataFrame([new_row])],
+                ignore_index=True
+            )
+            st.success("Transaksi berhasil ditambahkan!")
 
-    # Bersihkan data kosong dan tampilkan total
-    df_clean = new_df[new_df["Keterangan"].astype(str).str.strip() != ""]
+    st.divider()
 
-    if not df_clean.empty:
-        total_debit = df_clean["Debit (Rp)"].sum()
-        total_kredit = df_clean["Kredit (Rp)"].sum()
+    # Tampilkan tabel jurnal dengan total dan opsi hapus baris
+    df_jurnal = st.session_state.jurnal.copy()
 
+    # Tombol hapus baris (berbasis index)
+    if not df_jurnal.empty:
+        st.subheader("Data Jurnal Umum")
+        # Reset index no otomatis
+        df_jurnal.index = range(1, len(df_jurnal)+1)
+        del_idx = st.number_input("Hapus baris nomor", min_value=0, max_value=len(df_jurnal), step=1, value=0, help="Masukkan nomor baris untuk dihapus, 0 untuk batal")
+
+        if st.button("Hapus Baris") and del_idx > 0:
+            st.session_state.jurnal = st.session_state.jurnal.drop(st.session_state.jurnal.index[del_idx-1]).reset_index(drop=True)
+            st.success(f"Baris {del_idx} berhasil dihapus!")
+            st.experimental_rerun()
+
+        # Hitung total debit dan kredit
+        total_debit = df_jurnal["Debit"].sum()
+        total_kredit = df_jurnal["Kredit"].sum()
+
+        # Tambah baris total
         total_row = pd.DataFrame({
             "Tanggal": [""],
             "Keterangan": ["TOTAL"],
             "Ref": [""],
-            "Debit (Rp)": [total_debit],
-            "Kredit (Rp)": [total_kredit],
+            "Debit": [total_debit],
+            "Kredit": [total_kredit],
         })
-        df_final = pd.concat([df_clean, total_row], ignore_index=True)
+        df_final = pd.concat([df_jurnal, total_row], ignore_index=True)
 
-        st.write("### 📊 Hasil Jurnal")
-        df_final_display = df_final.copy()
-        df_final_display.index = range(1, len(df_final_display) + 1)
-        df_final_display.index.name = "No"
+        # Tampilkan dataframe dengan format rupiah & indonesian date
+        styler = df_final.style.format({
+            "Tanggal": lambda d: d.strftime("%d-%m-%Y") if hasattr(d, "strftime") else d,
+            "Debit": "Rp {:,.0f}".format,
+            "Kredit": "Rp {:,.0f}".format
+        }).set_properties(**{"text-align": "center"})
 
-        st.dataframe(df_final_display.style.format({
-            "Debit (Rp)": format_rupiah,
-            "Kredit (Rp)": format_rupiah
-        }))
-
-        # Fungsi buat PDF
-        def buat_pdf(df):
-            pdf = FPDF()
-            pdf.add_page()
-            pdf.set_font("Arial", size=12)
-            pdf.cell(200, 10, txt="Jurnal Umum BUMDes", ln=True, align="C")
-            pdf.ln(8)
-
-            col_width = 190 / len(df.columns)
-            for col in df.columns:
-                pdf.cell(col_width, 10, col, border=1, align="C")
-            pdf.ln()
-
-            pdf.set_font("Arial", size=10)
-            for _, row in df.iterrows():
-                for item in row:
-                    pdf.cell(col_width, 8, str(item), border=1, align="C")
-                pdf.ln()
-
-            with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp:
-                pdf.output(tmp.name)
-                tmp.seek(0)
-                return tmp.read()
-
-        pdf_data = buat_pdf(df_final)
-        st.download_button(
-            "📥 Download PDF",
-            data=pdf_data,
-            file_name="jurnal_umum.pdf",
-            mime="application/pdf",
-            use_container_width=True
-        )
+        st.dataframe(styler, use_container_width=True)
     else:
-        st.warning("Belum ada data valid di tabel.")
+        st.info("Belum ada data transaksi di Jurnal Umum.")
 
 with tab2:
     st.header("📚 Buku Besar")
