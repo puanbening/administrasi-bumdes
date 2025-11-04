@@ -1,4 +1,4 @@
-streamlit-aggrid
+streamlit
 pandas
 fpdf2
 reportlab
