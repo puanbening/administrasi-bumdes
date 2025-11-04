@@ -6,6 +6,9 @@ import tempfile
 st.set_page_config(page_title="Administrasi BUMDes", layout="wide")
 st.title("📘 Sistem Akuntansi BUMDes")
 
+# === Sidebar Navigasi ===
+menu = st.sidebar.radio("Navigasi", ["🧾 Jurnal Umum", "📚 Buku Besar"])
+
 # Inisialisasi data awal
 if "data" not in st.session_state:
     st.session_state.data = pd.DataFrame([
@@ -16,10 +19,8 @@ if "data" not in st.session_state:
 def format_rupiah(x):
     return f"Rp {x:,.0f}".replace(",", ".")
 
-tab1, tab2 = st.tabs(["🧾 Jurnal Umum", "📚 Buku Besar"])
-
 # ================= TAB 1 =====================
-with tab1:
+if menu == "🧾 Jurnal Umum":
     st.header("🧾 Jurnal Umum (Editable Table)")
     st.caption("💡 Setelah mengetik, tekan Enter atau klik di luar sel agar tersimpan.")
 
@@ -109,3 +110,8 @@ with tab1:
 
     else:
         st.warning("Belum ada data valid di tabel.")
+
+# ================= TAB 2 =====================
+elif menu == "📚 Buku Besar":
+    st.header("📚 Buku Besar")
+    st.info("Halaman ini untuk menampilkan rekap akun.")
