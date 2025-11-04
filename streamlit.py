@@ -4,7 +4,7 @@ from fpdf import FPDF
 import tempfile
 
 st.set_page_config(page_title="Jurnal & Buku Besar BUMDes", layout="wide")
-st.title("📘 Sistem Akuntansi Sederhana BUMDes - Januari 2025")
+st.title("📘 Sistem Akuntansi Sederhana BUMDes")
 
 # State untuk simpan data
 if "data" not in st.session_state:
