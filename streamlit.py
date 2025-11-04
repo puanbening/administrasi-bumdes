@@ -42,34 +42,36 @@ tab1, tab2 = st.tabs(["🧾 Jurnal Umum", "📚 Buku Besar"])
 with tab1:
     st.header("🧾 Jurnal Umum")
 
-    st.info("✏️ Klik langsung di tabel untuk menambah atau mengubah data.")
+    st.info("✏️ Klik langsung di tabel untuk menambah atau mengubah data. Tekan Enter sekali untuk menyimpan perubahan.")
 
-    # Editor Data Interaktif
+    # Editor Data Interaktif - realtime otomatis
     edited_df = st.data_editor(
         st.session_state.data,
         num_rows="dynamic",
         use_container_width=True,
         key="editable_table",
+        disabled=False,
         column_config={
             "Tanggal": st.column_config.TextColumn("Tanggal (misal: 2025-01-01)"),
             "Keterangan": st.column_config.TextColumn("Keterangan"),
             "Ref": st.column_config.TextColumn("Ref (contoh: 101)"),
-            "Debit (Rp)": st.column_config.NumberColumn("Debit (Rp)", step=1000),
-            "Kredit (Rp)": st.column_config.NumberColumn("Kredit (Rp)", step=1000),
+            "Debit (Rp)": st.column_config.NumberColumn("Debit (Rp)", step=1000, format="%d"),
+            "Kredit (Rp)": st.column_config.NumberColumn("Kredit (Rp)", step=1000, format="%d"),
         }
     )
 
-    st.session_state.data = edited_df
+    # Update otomatis ke session_state
+    if not edited_df.equals(st.session_state.data):
+        st.session_state.data = edited_df.copy()
 
     # === Bersihkan Data Kosong ===
     df_clean = edited_df.dropna(subset=["Keterangan"], how="all")
-    df_clean = df_clean[df_clean["Keterangan"].str.strip() != ""]
+    df_clean = df_clean[df_clean["Keterangan"].astype(str).str.strip() != ""]
 
     if not df_clean.empty:
         total_debit = df_clean["Debit (Rp)"].sum()
         total_kredit = df_clean["Kredit (Rp)"].sum()
 
-        # Tambahkan baris total
         total_row = pd.DataFrame({
             "Tanggal": [""],
             "Keterangan": ["TOTAL"],
@@ -86,7 +88,6 @@ with tab1:
             "Kredit (Rp)": format_rupiah
         }))
 
-        # === Fungsi Buat PDF ===
         def buat_pdf(df):
             pdf = FPDF()
             pdf.add_page()
@@ -94,28 +95,23 @@ with tab1:
             pdf.cell(200, 10, txt="Jurnal Umum BUMDes", ln=True, align="C")
             pdf.ln(8)
 
-            # Header
             col_width = 190 / len(df.columns)
             for col in df.columns:
                 pdf.cell(col_width, 10, col, border=1, align="C")
             pdf.ln()
 
-            # Isi tabel
             pdf.set_font("Arial", size=10)
             for _, row in df.iterrows():
                 for item in row:
                     pdf.cell(col_width, 8, str(item), border=1, align="C")
                 pdf.ln()
 
-            # Simpan ke file sementara
             with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp:
                 pdf.output(tmp.name)
                 tmp.seek(0)
                 return tmp.read()
 
         pdf_data = buat_pdf(df_final)
-
-        # Tombol download
         st.download_button(
             "📥 Download PDF",
             data=pdf_data,
