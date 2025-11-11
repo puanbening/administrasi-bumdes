@@ -26,6 +26,44 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
+# === Helper formatting ===
+def fmt_tgl(v):
+    try:
+        return pd.to_datetime(v).strftime("%d-%m-%Y")
+    except Exception:
+        return v
+
+def style_table(df: pd.DataFrame, add_total: bool = True) -> pd.io.formats.style.Styler:
+    # Buat salinan untuk tampilan
+    df_disp = df.copy()
+
+    # Nomori baris mulai 1 (untuk tampilan)
+    df_disp.index = range(1, len(df_disp) + 1)
+
+    # Tambahkan baris TOTAL (hanya untuk kolom yang ada)
+    if add_total and not df_disp.empty:
+        totals = {}
+        for col in ["Debit", "Kredit"]:
+            if col in df_disp.columns:
+                totals[col] = df_disp[col].sum()
+        total_row = {c: "" for c in df_disp.columns}
+        total_row.update({"Keterangan": "TOTAL"})
+        total_row.update(totals)
+
+        # Append tanpa merusak penomoran index
+        df_disp = pd.concat([df_disp, pd.DataFrame([total_row])], ignore_index=False)
+
+    # Siapkan peta format
+    format_map = {}
+    if "Tanggal" in df_disp.columns:
+        format_map["Tanggal"] = fmt_tgl
+    for col in ["Debit", "Kredit", "Saldo Debit", "Saldo Kredit"]:
+        if col in df_disp.columns:
+            format_map[col] = "Rp {:,.0f}".format
+
+    styler = df_disp.style.format(format_map).set_properties(**{"text-align": "center"})
+    return styler
+
 # === Tabs utama ===
 tab1, tab2 = st.tabs(["🧾 Jurnal Umum", "📚 Buku Besar"])
 
@@ -40,14 +78,13 @@ with tab1:
     if "jurnal" not in st.session_state:
         st.session_state.jurnal = pd.DataFrame(columns=jurnal_cols)
     else:
-        # Drop kolom 'Ref' jika masih ada (migrasi data lama)
+        # Migrasi: drop 'Ref' jika ada
         if "Ref" in st.session_state.jurnal.columns:
             st.session_state.jurnal = st.session_state.jurnal.drop(columns=["Ref"])
-
-        # Pastikan urutan dan kelengkapan kolom sesuai
+        # Pastikan kolom lengkap & urut
         for c in jurnal_cols:
             if c not in st.session_state.jurnal.columns:
-                st.session_state.jurnal[c] = []  # tambahkan kolom kosong
+                st.session_state.jurnal[c] = []
         st.session_state.jurnal = st.session_state.jurnal[jurnal_cols]
 
     # Form input transaksi (tanpa 'Ref')
@@ -85,44 +122,12 @@ with tab1:
 
     st.divider()
 
-    # Tampilkan tabel jurnal dengan total dan opsi hapus baris
+    # Tabel Jurnal + aksi hapus
     df_jurnal = st.session_state.jurnal.copy()
 
     if not df_jurnal.empty:
         st.subheader("Data Jurnal Umum")
-
-        # Nomori baris mulai dari 1 (untuk tampilan)
-        df_display = df_jurnal.copy()
-        df_display.index = range(1, len(df_display) + 1)
-
-        # Hitung total debit dan kredit
-        total_debit = df_jurnal["Debit"].sum()
-        total_kredit = df_jurnal["Kredit"].sum()
-
-        # Tambah baris total (untuk tampilan)
-        total_row = pd.DataFrame({
-            "Tanggal": [""],
-            "Keterangan": ["TOTAL"],
-            "Debit": [total_debit],
-            "Kredit": [total_kredit],
-        })
-        # gunakan ignore_index=False agar index penomoran tidak berubah
-        df_final = pd.concat([df_display, total_row], ignore_index=False)
-
-        # Format tampilan
-        def fmt_tgl(v):
-            try:
-                return pd.to_datetime(v).strftime("%d-%m-%Y")
-            except Exception:
-                return v
-
-        styler = df_final.style.format({
-            "Tanggal": fmt_tgl,
-            "Debit": "Rp {:,.0f}".format,
-            "Kredit": "Rp {:,.0f}".format
-        }).set_properties(**{"text-align": "center"})
-
-        st.dataframe(styler, use_container_width=True)
+        st.dataframe(style_table(df_jurnal, add_total=True), use_container_width=True)
 
         cdel1, cdel2, cdel3 = st.columns([2, 1, 1])
         with cdel1:
@@ -136,7 +141,6 @@ with tab1:
             )
         with cdel2:
             if st.button("Hapus Baris"):
-                # Map nomor tampilan (1..N) ke index asli (0..N-1)
                 st.session_state.jurnal = st.session_state.jurnal.drop(
                     st.session_state.jurnal.index[int(del_idx) - 1]
                 ).reset_index(drop=True)
@@ -148,6 +152,9 @@ with tab1:
                 st.success("Semua baris jurnal berhasil dihapus!")
                 st.rerun()
     else:
+        # Tetap tampilkan tabel kosong agar konsisten
+        st.subheader("Data Jurnal Umum")
+        st.dataframe(style_table(df_jurnal, add_total=False), use_container_width=True)
         st.info("Belum ada data transaksi di Jurnal Umum.")
 
 # =========================
@@ -251,14 +258,4 @@ with tab2:
         with tabs_akun[i]:
             st.markdown(f"Nama Akun : {akun.split(' - ',1)[1]}  \nNo Akun : {akun.split(' - ',1)[0]}")
             df = st.session_state.accounts[akun]
-            df_show = hitung_saldo(df) if not df.empty else df.copy()
-
-            st.dataframe(
-                df_show.style.format({
-                    "Debit": "Rp {:,.0f}".format,
-                    "Kredit": "Rp {:,.0f}".format,
-                    "Saldo Debit": "Rp {:,.0f}".format,
-                    "Saldo Kredit": "Rp {:,.0f}".format,
-                }).set_properties(**{"text-align": "center"}),
-                use_container_width=True
-            )
+            df
