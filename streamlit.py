@@ -267,4 +267,4 @@ with tab2:
             st.markdown(f"Nama Akun : {akun.split(' - ',1)[1]}  \nNo Akun : {akun.split(' - ',1)[0]}")
             df = st.session_state.accounts[akun]
             df_show = hitung_saldo(df) if not df.empty else df.copy()
-            st.dataframe(style_table(df_show, add_total=True), use
+            st.dataframe(style_table(df_show, add_total=True), use_container_width=True)
