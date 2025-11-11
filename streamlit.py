@@ -33,22 +33,26 @@ def fmt_tgl(v):
     except Exception:
         return v
 
-def style_table(df: pd.DataFrame, add_total: bool = True) -> pd.io.formats.style.Styler:
+def style_table(df: pd.DataFrame, add_total: bool = True):
+    # Salinan untuk tampilan
     df_disp = df.copy()
-    df_disp.index = range(1, len(df_disp) + 1)  # penomoran mulai 1
 
+    # Penomoran baris mulai 1
+    df_disp.index = range(1, len(df_disp) + 1)
+
+    # Tambahkan baris TOTAL (untuk Debit & Kredit)
     if add_total and not df_disp.empty:
         totals = {}
         for col in ["Debit", "Kredit"]:
             if col in df_disp.columns:
                 totals[col] = df_disp[col].sum()
         total_row = {c: "" for c in df_disp.columns}
-        # pastikan kolom Keterangan ada sebelum memberi label TOTAL
         if "Keterangan" in total_row:
             total_row["Keterangan"] = "TOTAL"
         total_row.update(totals)
         df_disp = pd.concat([df_disp, pd.DataFrame([total_row])], ignore_index=False)
 
+    # Peta format
     format_map = {}
     if "Tanggal" in df_disp.columns:
         format_map["Tanggal"] = fmt_tgl
@@ -58,12 +62,12 @@ def style_table(df: pd.DataFrame, add_total: bool = True) -> pd.io.formats.style
 
     return df_disp.style.format(format_map).set_properties(**{"text-align": "center"})
 
-# === Helper form tambah transaksi (disamakan) ===
+# === Helper form tambah transaksi (seragam) ===
 def form_transaksi(form_key: str, akun_options=None):
     """
     Render form tambah transaksi dengan desain seragam.
-    - form_key: key unik untuk menghindari bentrok widget
-    - akun_options: list akun; jika None, dropdown akun tidak ditampilkan (untuk Jurnal Umum)
+    - form_key: key unik untuk hindari bentrok widget
+    - akun_options: list akun; jika None, dropdown akun disembunyikan (untuk Jurnal Umum)
     Return: dict {submitted, tgl, ket, tipe, jumlah, akun (opsional)}
     """
     with st.form(form_key):
@@ -104,7 +108,7 @@ with tab1:
     st.header("🧾 Jurnal Umum")
     st.subheader("Input Transaksi Baru")
 
-    # Inisialisasi / migrasi struktur DataFrame jurnal
+    # Inisialisasi / migrasi struktur DataFrame jurnal (tanpa Ref)
     jurnal_cols = ["Tanggal", "Keterangan", "Debit", "Kredit"]
     if "jurnal" not in st.session_state:
         st.session_state.jurnal = pd.DataFrame(columns=jurnal_cols)
@@ -116,7 +120,7 @@ with tab1:
                 st.session_state.jurnal[c] = []
         st.session_state.jurnal = st.session_state.jurnal[jurnal_cols]
 
-    # Form transaksi (tanpa akun)
+    # Form transaksi Jurnal (tanpa akun)
     f = form_transaksi("form_input_jurnal", akun_options=None)
     if f["submitted"]:
         if f["ket"].strip() == "":
@@ -207,8 +211,10 @@ with tab2:
         for c in ["Debit", "Kredit"]:
             dfx[c] = pd.to_numeric(dfx[c], errors="coerce").fillna(0.0)
 
+        # Urutkan tanggal stabil
         dfx = dfx.sort_values(["Tanggal"], kind="mergesort").reset_index(drop=True)
 
+        # Running balance (Debit - Kredit)
         running = 0.0
         saldo_debit = []
         saldo_kredit = []
@@ -261,5 +267,4 @@ with tab2:
             st.markdown(f"Nama Akun : {akun.split(' - ',1)[1]}  \nNo Akun : {akun.split(' - ',1)[0]}")
             df = st.session_state.accounts[akun]
             df_show = hitung_saldo(df) if not df.empty else df.copy()
-
-            st.dataframe(style_table(df_show, add_total=True), use_container_width=True)
+            st.dataframe(style_table(df_show, add_total=True), use
