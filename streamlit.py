@@ -264,7 +264,7 @@ with tab2:
     tabs_akun = st.tabs(akun_list)
     for i, akun in enumerate(akun_list):
         with tabs_akun[i]:
-            st.markdown(f"Nama Akun : {akun.split(' - ',1)[1]}  \n")
+            st.markdown(f"Nama Akun : {akun}  \n")
             df = st.session_state.accounts[akun]
             df_show = hitung_saldo(df) if not df.empty else df.copy()
             st.dataframe(style_table(df_show, add_total=True), use_container_width=True)
