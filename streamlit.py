@@ -242,4 +242,61 @@ def build_pdf_buku_besar_per_akun(akun: str, df: pd.DataFrame, org_name: str = "
     buf = BytesIO()
     doc = SimpleDocTemplate(
         buf, pagesize=landscape(A4),
-        leftMargin=
+        leftMargin=1.5*cm, rightMargin=1.5*cm, topMargin=1.2*cm, bottomMargin=1.2*cm
+    )
+    styles = getSampleStyleSheet()
+    story = []
+
+    title = Paragraph(f"<b>Buku Besar - {akun} - {org_name}</b>", styles["Title"])
+    subtitle = Paragraph(datetime.now().strftime("Dicetak: %d-%m-%Y %H:%M"), styles["Normal"])
+    story += [title, subtitle, Spacer(1, 0.4*cm)]
+
+    if df.empty:
+        story.append(Paragraph("Tidak ada data untuk akun ini.", styles["Normal"]))
+        doc.build(story)
+        buf.seek(0)
+        return buf
+
+    # Hitung saldo berjalan
+    dfx = hitung_saldo(df)
+
+    # Header
+    data = [["Tanggal", "Keterangan", "Debit", "Kredit", "Saldo Debit", "Saldo Kredit"]]
+
+    # Body
+    for _, r in dfx.iterrows():
+        data.append([
+            fmt_tgl(r.get("Tanggal", "")),
+            str(r.get("Keterangan", "")),
+            rupiah(r.get("Debit", 0.0), empty_zero=True),
+            rupiah(r.get("Kredit", 0.0), empty_zero=True),
+            rupiah(r.get("Saldo Debit", 0.0), empty_zero=True),
+            rupiah(r.get("Saldo Kredit", 0.0), empty_zero=True),
+        ])
+
+    # Baris total akhir (pilihan umum)
+    total_debit = dfx["Debit"].sum()
+    total_kredit = dfx["Kredit"].sum()
+    last_sd = dfx["Saldo Debit"].iloc[-1]
+    last_sk = dfx["Saldo Kredit"].iloc[-1]
+
+    data.append([
+        "",
+        "TOTAL",
+        rupiah(total_debit),
+        rupiah(total_kredit),
+        rupiah(last_sd),
+        rupiah(last_sk),
+    ])
+
+    # Lebar kolom
+    col_widths = [3.0, 12.0, 4.0, 4.0, 4.5, 4.5]
+    tbl = _pdf_make_table(data, col_widths)
+
+    # Keterangan rata kiri
+    tbl.setStyle(TableStyle([("ALIGN", (1, 1), (1, -2), "LEFT")]))
+
+    story.append(tbl)
+    doc.build(story)
+    buf.seek(0)
+    return buf
