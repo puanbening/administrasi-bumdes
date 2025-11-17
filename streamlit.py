@@ -152,48 +152,4 @@ def filter_periode(df: pd.DataFrame, start: date, end: date) -> pd.DataFrame:
     return dfx.loc[mask].copy()
 
 # === Hitung saldo berjalan (all-time) ===
-def hitung_saldo(df: pd.DataFrame) -> pd.DataFrame:
-    if df.empty:
-        return df.copy()
-    dfx = df.copy()
-    dfx["Tanggal"] = pd.to_datetime(dfx["Tanggal"], errors='coerce')
-    for c in ["Debit", "Kredit"]:
-        dfx[c] = pd.to_numeric(dfx[c], errors="coerce").fillna(0.0)
-
-    # Urutkan tanggal stabil
-    dfx = dfx.sort_values(["Tanggal"], kind="mergesort").reset_index(drop=True)
-
-    # Running balance (Debit - Kredit)
-    running = 0.0
-    saldo_debit = []
-    saldo_kredit = []
-    for _, r in dfx.iterrows():
-        running += float(r["Debit"]) - float(r["Kredit"])
-        if running >= 0:
-            saldo_debit.append(running)
-            saldo_kredit.append(0.0)
-        else:
-            saldo_debit.append(0.0)
-            saldo_kredit.append(abs(running))
-
-    dfx["Saldo Debit"] = saldo_debit
-    dfx["Saldo Kredit"] = saldo_kredit
-    dfx["Tanggal"] = dfx["Tanggal"].dt.date
-    return dfx
-
-# === Ledger per periode + Saldo Awal ===
-def ledger_periode_with_opening(df: pd.DataFrame, start: date, end: date) -> pd.DataFrame:
-    # Ledger periode + baris "Saldo Awal" dan saldo berjalan
-    if df.empty:
-        return pd.DataFrame([{
-            "Tanggal": start, "Keterangan": "Saldo Awal",
-            "Debit": 0.0, "Kredit": 0.0, "Saldo Debit": 0.0, "Saldo Kredit": 0.0
-        }])
-
-    dfx = df.copy()
-    dfx["Tanggal"] = pd.to_datetime(dfx["Tanggal"], errors="coerce")
-    for c in ["Debit", "Kredit"]:
-        dfx[c] = pd.to_numeric(dfx[c], errors="coerce").fillna(0.0)
-
-    opening = dfx.loc[dfx["Tanggal"] < pd.to_datetime(start), "Debit"].sum() - \
-              dfx.loc[dfx["Tanggal"] <
+def hitung_saldo(df: pd.DataFrame)
