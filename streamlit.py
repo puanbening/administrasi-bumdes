@@ -192,6 +192,13 @@ with tab2:
             "Peralatan": pd.DataFrame(columns=akun_cols),
             "Perlengkapan": pd.DataFrame(columns=akun_cols),
             "Modal": pd.DataFrame(columns=akun_cols),
+            "Pendapatan": pd.DataFrame(columns=akun_cols),
+            "Beban sewa": pd.DataFrame(columns=akun_cols),
+            "Beban BBM": pd.DataFrame(columns=akun_cols),
+            "Beban gaji": pd.DataFrame(columns=akun_cols),
+            "Beban listrik": pd.DataFrame(columns=akun_cols),
+            "Beban perawatan": pd.DataFrame(columns=akun_cols),
+            "Beban prive": pd.DataFrame(columns=akun_cols)
         }
     else:
         for k, df in st.session_state.accounts.items():
