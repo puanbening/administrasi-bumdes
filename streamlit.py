@@ -282,4 +282,5 @@ with c2:
                     "Download PDF",
                     data=pdf_bytes,
                     file_name=f"jurnal_umum_{tahun}_{bulan:02d}.pdf",
-                    mime="application
+                    mime="application/pdf"
+                )
