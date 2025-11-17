@@ -188,10 +188,10 @@ with tab2:
     akun_cols = ["Tanggal", "Keterangan", "Debit", "Kredit"]
     if "accounts" not in st.session_state:
         st.session_state.accounts = {
-            "101 - Kas": pd.DataFrame(columns=akun_cols),
-            "102 - Peralatan": pd.DataFrame(columns=akun_cols),
-            "103 - Perlengkapan": pd.DataFrame(columns=akun_cols),
-            "301 - Modal": pd.DataFrame(columns=akun_cols),
+            "Kas": pd.DataFrame(columns=akun_cols),
+            "Peralatan": pd.DataFrame(columns=akun_cols),
+            "Perlengkapan": pd.DataFrame(columns=akun_cols),
+            "Modal": pd.DataFrame(columns=akun_cols),
         }
     else:
         for k, df in st.session_state.accounts.items():
