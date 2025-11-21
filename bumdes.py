@@ -529,9 +529,8 @@ with tab2:
         # Ambil buku besar TERFILTER periode
         bb_periode = buat_buku_besar_periode(bulan_bukubesar, tahun_bukubesar)
 
-    if not bb_periode:
-        st.info("ℹ️ Belum ada data untuk buku besar pada periode ini. Silakan isi Jurnal Umum terlebih dahulu.")
-        #st.stop()
+     if not st.session_state.buku_besar:
+        st.info("ℹ️ Belum ada data untuk buku besar. Silakan isi Jurnal Umum terlebih dahulu.")
     
     else:
         # Buat pilihan berdasarkan nama akun asli
