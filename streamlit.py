@@ -221,19 +221,19 @@ with tab1:
     gb.configure_default_column(editable=True, resizable=True)
     gb.configure_grid_options(stopEditingWhenCellsLoseFocus=False)
     gb.configure_column(
-    "Tanggal",
-    editable=True,
-    cellEditor="agDateCellEditor",
-    valueFormatter="value ? new Date(value).toLocaleDateString('en-CA') : ''",
-    valueParser: `
-    function(params){
-        if (!params.newValue) return null;   
-        const d = new Date(params.newValue);
-        if (isNaN(d)) return null;          
-        return d.toISOString().split('T')[0]; 
-    }
-    `
-
+        "Tanggal",
+        editable=True,
+        cellEditor="agDateCellEditor",
+        valueFormatter="value ? new Date(value).toLocaleDateString('en-CA') : ''",
+        valueParser="""
+            function(params){
+                if (!params.newValue) return null;
+                const d = new Date(params.newValue);
+                if (isNaN(d)) return null;
+                return d.toISOString().split('T')[0];
+            }
+        """
+    )
     gb.configure_column("Keterangan", header_name="Keterangan")
     gb.configure_column("Akun", header_name="Akun (contoh: Perlengkapan)")
     gb.configure_column("Debit (Rp)", type=["numericColumn"], valueFormatter="value ? value.toLocaleString() : ''")
