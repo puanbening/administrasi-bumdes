@@ -11,7 +11,7 @@ st.title("📘 Sistem Akuntansi BUMDes")
 # === Inisialisasi data awal ===
 if "data" not in st.session_state:
     st.session_state.data = pd.DataFrame([
-        {"Tanggal": "None", "Keterangan": "", "Akun": "", "Debit (Rp)": 0, "Kredit (Rp)": 0}
+        {"Tanggal": "", "Keterangan": "", "Akun": "", "Debit (Rp)": 0, "Kredit (Rp)": 0}
     ])
 
 if "neraca_saldo" not in st.session_state:
@@ -190,7 +190,7 @@ with tab1:
 
     # Tombol tambah baris untuk Jurnal Umum
     if st.button("➕ Tambah Baris Jurnal", key="tambah_jurnal"):
-        new_row = pd.DataFrame([{"Tanggal": None, "Keterangan": "", "Akun": "", "Debit (Rp)": 0, "Kredit (Rp)": 0}])
+        new_row = pd.DataFrame([{"Tanggal": "", "Keterangan": "", "Akun": "", "Debit (Rp)": 0, "Kredit (Rp)": 0}])
         st.session_state.data = pd.concat([st.session_state.data, new_row], ignore_index=True)
         st.rerun()
 
@@ -230,7 +230,10 @@ with tab1:
     )
 
     new_df = pd.DataFrame(grid_response["data"])
-    new_df["Tanggal"] = pd.to_datetime(new_df["Tanggal"], errors="coerce").dt.date
+    new_df["Tanggal"] = pd.to_datetime(
+    new_df["Tanggal"].replace({"": None}),
+        errors="coerce"
+    ).dt.date
     if not new_df.equals(st.session_state.data):
         st.session_state.data = new_df.copy()
 
