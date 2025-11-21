@@ -530,7 +530,7 @@ with tab2:
         bb_periode = buat_buku_besar_periode(bulan_bukubesar, tahun_bukubesar)
 
     if not st.session_state.buku_besar:
-        st.info("ℹ️ Belum ada data untuk buku besar. Silakan isi Jurnal Umum terlebih dahulu.")
+        st.info("ℹ️ Belum ada data untuk Buku Besar. Silakan isi Jurnal Umum terlebih dahulu.")
     
     else:
         # Buat pilihan berdasarkan nama akun asli
