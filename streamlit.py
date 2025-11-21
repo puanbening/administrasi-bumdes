@@ -298,34 +298,38 @@ with tab1:
             "Kredit (Rp)": format_rupiah
         }))
         
-        def buat_pdf(df):
+        def buat_pdf(df, bulan, tahun):
+            import calendar
             pdf = FPDF()
             pdf.add_page()
             pdf.set_font("Arial", size=12)
-            pdf.cell(200, 10, txt="Jurnal Umum BUMDes", ln=True, align="C")
+            
+            # Judul PDF dengan bulan & tahun
+            bulan_nama = calendar.month_name[int(bulan)]
+            pdf.cell(200, 10, txt=f"Jurnal Umum BUMDes - {bulan_nama} {tahun}", ln=True, align="C")
             pdf.ln(8)
-
+        
             col_width = 190 / len(df.columns)
+            # Header tabel
             for col in df.columns:
                 pdf.cell(col_width, 10, col, border=1, align="C")
             pdf.ln()
-
+        
             pdf.set_font("Arial", size=10)
             for _, row in df.iterrows():
                 for item in row:
                     pdf.cell(col_width, 8, str(item), border=1, align="C")
                 pdf.ln()
-
+        
             with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp:
                 pdf.output(tmp.name)
                 tmp.seek(0)
                 return tmp.read()
-
-        pdf_data = buat_pdf(df_final)
+        pdf_data = buat_pdf(df_final, bulan_selected, tahun_selected)
         st.download_button(
             "📥 Download PDF",
             data=pdf_data,
-            file_name="jurnal_umum.pdf",
+            file_name=f"jurnal_umum_{bulan_selected}_{tahun_selected}.pdf",
             mime="application/pdf",
             use_container_width=True
         )
