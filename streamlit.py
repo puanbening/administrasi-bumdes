@@ -195,24 +195,31 @@ with tab1:
     st.header("🧾 Jurnal Umum")
     st.info("💡 Tekan Enter sekali untuk menyimpan perubahan otomatis.")
 
-    # Tombol tambah baris
-    if st.button("➕ Tambah Baris Jurnal"):
-        new_row = pd.DataFrame([{
-            "Tanggal": "", "Keterangan": "", "Akun": "", "Debit (Rp)": 0, "Kredit (Rp)": 0
-        }])
+    # Tombol tambah baris untuk Jurnal Umum
+    if st.button("➕ Tambah Baris Jurnal", key="tambah_jurnal"):
+        new_row = pd.DataFrame([{"Tanggal": "", "Keterangan": "", "Akun": "", "Debit (Rp)": 0, "Kredit (Rp)": 0}])
         st.session_state.data = pd.concat([st.session_state.data, new_row], ignore_index=True)
+        st.rerun()
 
-    # Konfigurasi AgGrid
+
+    # Konfigurasi Grid 
     gb = GridOptionsBuilder.from_dataframe(st.session_state.data)
     gb.configure_default_column(editable=True, resizable=True)
     gb.configure_grid_options(stopEditingWhenCellsLoseFocus=False)
-
     gb.configure_column(
-        "Tanggal",
-        editable=True,
-        cellEditor="agTextCellEditor",
-        header_name="Tanggal (YYYY-MM-DD)",
-        cellEditorParams={"placeholder": "YYYY-MM-DD"}
+    "Tanggal",
+    editable=True,
+    cellEditor="agDateCellEditor",
+    valueFormatter="value ? new Date(value).toLocaleDateString('en-CA') : ''",
+    valueParser="""
+        function(params){
+            if (!params.newValue) return '';
+            // Konversi ke tanggal ISO
+            const d = new Date(params.newValue);
+            if (isNaN(d)) return '';
+            return d.toISOString().split('T')[0]; // "YYYY-MM-DD"
+        }
+    """
     )
     gb.configure_column("Keterangan", header_name="Keterangan")
     gb.configure_column("Akun", header_name="Akun (contoh: Perlengkapan)")
@@ -221,16 +228,6 @@ with tab1:
 
     grid_options = gb.build()
 
-    # Callback untuk update session_state
-    def update_jurnal(data):
-        df = pd.DataFrame(data)
-        if "Tanggal" in df.columns:
-            df["Tanggal"] = df["Tanggal"].astype(str).str.strip()
-            df["Tanggal"] = df["Tanggal"].apply(parse_date_safe)
-            df["Tanggal"] = df["Tanggal"].apply(lambda x: x.isoformat() if x else "")
-        st.session_state.data = df.copy()
-
-    # Render AgGrid dengan callback
     grid_response = AgGrid(
         st.session_state.data,
         gridOptions=grid_options,
@@ -244,13 +241,24 @@ with tab1:
         reload_data=False
     )
 
-    # Tombol simpan perubahan dari grid
-    if st.button("💾 Simpan Perubahan Jurnal"):
-        update_jurnal(grid_response["data"])
-        st.success("✅ Data jurnal berhasil diperbarui")
+    new_df = pd.DataFrame(grid_response["data"])
+    if "Tanggal" in new_df.columns:
+        # ubah semua jadi string dulu, strip whitespace
+        new_df["Tanggal"] = new_df["Tanggal"].astype(str).str.strip()
+        
+        # ubah string kosong atau "None"/"nan" menjadi NaN
+        new_df["Tanggal"] = new_df["Tanggal"].replace({"": pd.NA, "None": pd.NA, "nan": pd.NA})
+        
+        # konversi ke datetime, invalid jadi NaT
+        new_df["Tanggal"] = pd.to_datetime(new_df["Tanggal"], errors="coerce")
+        
+        # ubah NaT menjadi string kosong agar tampil di st.dataframe
+        new_df["Tanggal"] = new_df["Tanggal"].dt.strftime('%Y-%m-%d').fillna('')
 
-    # Hitung total dan tampilkan
-    df_clean = st.session_state.data[st.session_state.data["Keterangan"].astype(str).str.strip() != ""]
+    if not new_df.equals(st.session_state.data):
+        st.session_state.data = new_df.copy()
+
+    df_clean = new_df[new_df["Keterangan"].astype(str).str.strip() != ""]
 
     if not df_clean.empty:
         total_debit = df_clean["Debit (Rp)"].sum()
@@ -268,13 +276,36 @@ with tab1:
         df_final_display = df_final.copy()
         df_final_display.index = range(1, len(df_final_display) + 1)
         df_final_display.index.name = "No"
-
+    
+        
         st.dataframe(df_final_display.style.format({
             "Debit (Rp)": format_rupiah,
             "Kredit (Rp)": format_rupiah
         }))
+        
+        def buat_pdf(df):
+            pdf = FPDF()
+            pdf.add_page()
+            pdf.set_font("Arial", size=12)
+            pdf.cell(200, 10, txt="Jurnal Umum BUMDes", ln=True, align="C")
+            pdf.ln(8)
 
-        # Download PDF
+            col_width = 190 / len(df.columns)
+            for col in df.columns:
+                pdf.cell(col_width, 10, col, border=1, align="C")
+            pdf.ln()
+
+            pdf.set_font("Arial", size=10)
+            for _, row in df.iterrows():
+                for item in row:
+                    pdf.cell(col_width, 8, str(item), border=1, align="C")
+                pdf.ln()
+
+            with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp:
+                pdf.output(tmp.name)
+                tmp.seek(0)
+                return tmp.read()
+
         pdf_data = buat_pdf(df_final)
         st.download_button(
             "📥 Download PDF",
@@ -285,6 +316,7 @@ with tab1:
         )
     else:
         st.warning("Belum ada data valid di tabel.")
+
         
 # ========================================
 # TAB 2: BUKU BESAR
