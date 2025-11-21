@@ -642,13 +642,9 @@ with tab3:
     # Bangun Buku Besar khusus periode yang dipilih
     bb_periode = buat_buku_besar_periode(bulan_neraca, tahun_neraca)
     
-    # Auto-sync setiap rerun (default ON)
-    auto_sync = st.checkbox("Sinkron otomatis dari Buku Besar (sesuai periode)", value=True, key="auto_sync_neraca")
-    if auto_sync:
-        # non_destructive=True: baris manual tanpa Ref tidak dihapus
-        sync_neraca_from_bb(bb_periode, non_destructive=True)
+    # Auto-sync 
+    sync_neraca_from_bb(bb_periode, non_destructive=True)
     
-
     # Tombol kontrol
     col1, col2, col3 = st.columns(3)
     
