@@ -258,7 +258,7 @@ with tab1:
     # Simpan data dari grid ke session state
     st.session_state.data = grid_response['data']
     
-    # Tampilkan data yang sudah difilter
+   # Tampilkan data yang sudah difilter
     df_clean = st.session_state.data[st.session_state.data["Keterangan"].astype(str).str.strip() != ""]
     
     if not df_clean.empty:
@@ -273,103 +273,105 @@ with tab1:
             "Kredit (Rp)": [total_kredit],
         })
         df_final = pd.concat([df_clean, total_row], ignore_index=True)
-
-           # === Hasil Jurnal (tanpa kolom Akun) + Export PDF ===
-    st.write("### 📊 Hasil Jurnal")
     
-    # Sembunyikan kolom Akun hanya untuk tampilan/ekspor (data asli tetap utuh)
-    df_final_display = df_final.drop(columns=[c for c in ["Akun"] if c in df_final.columns]).copy()
-    
-    # Penomoran baris untuk tampilan
-    df_final_display.index = range(1, len(df_final_display) + 1)
-    df_final_display.index.name = "No"
-    
-    # Tampilkan tabel hasil (tanpa kolom Akun)
-    st.dataframe(
-        df_final_display.style.format({
-            "Debit (Rp)": format_rupiah,
-            "Kredit (Rp)": format_rupiah
-        }),
-        use_container_width=True
-    )
-    
-    # --- PDF ---
-    def buat_pdf(df, bulan, tahun):
-        import calendar
-        pdf = FPDF(orientation='P', unit='mm', format='A4')
-        pdf.add_page()
-        pdf.set_font("Arial", size=12)
-    
-        # Nama bulan
-        bulan_dict = {
-            1: "Januari", 2: "Februari", 3: "Maret", 4: "April", 5: "Mei",
-            6: "Juni", 7: "Juli", 8: "Agustus", 9: "September",
-            10: "Oktober", 11: "November", 12: "Desember"
-        }
-        try:
-            bulan_nama = bulan_dict.get(int(bulan), calendar.month_name[int(bulan)])
-        except Exception:
-            bulan_nama = "Unknown"
-    
-        # Judul
-        pdf.cell(0, 10, txt=f"Jurnal Umum BUMDes - {bulan_nama} {tahun}", ln=True, align="C")
-        pdf.ln(4)
-    
-        # Lebar kolom (total ~190mm area tulis)
-        cols = list(df.columns)
-        preset_widths = {
-            "Tanggal": 25,
-            "Keterangan": 90,
-            "Ref": 20,
-            "Debit (Rp)": 27.5,
-            "Kredit (Rp)": 27.5
-        }
-        if all(c in preset_widths for c in cols):
-            col_widths = [preset_widths[c] for c in cols]
-        else:
-            col_widths = [190 / len(cols)] * len(cols)  # fallback bagi rata
-    
-        # Alignment per kolom
-        def col_align(name):
-            if "(Rp)" in name or name in {"Debit (Rp)", "Kredit (Rp)", "Jumlah", "Jumlah (Rp)"}:
-                return "R"
-            if name in {"Tanggal", "Ref"}:
-                return "C"
-            return "L"
-    
-        # Header
-        pdf.set_font("Arial", size=10, style="B")
-        for i, col in enumerate(cols):
-            pdf.cell(col_widths[i], 9, col, border=1, align="C")
-        pdf.ln()
-    
-        # Isi
-        pdf.set_font("Arial", size=9)
-        for _, row in df.iterrows():
+        # === Hasil Jurnal (tanpa kolom Akun) + Export PDF ===
+        st.write("### 📊 Hasil Jurnal")
+        
+        # Sembunyikan kolom Akun hanya untuk tampilan/ekspor (data asli tetap utuh)
+        df_final_display = df_final.drop(columns=[c for c in ["Akun"] if c in df_final.columns]).copy()
+        
+        # Penomoran baris untuk tampilan
+        df_final_display.index = range(1, len(df_final_display) + 1)
+        df_final_display.index.name = "No"
+        
+        # Tampilkan tabel hasil (tanpa kolom Akun)
+        st.dataframe(
+            df_final_display.style.format({
+                "Debit (Rp)": format_rupiah,
+                "Kredit (Rp)": format_rupiah
+            }),
+            use_container_width=True
+        )
+        
+        # --- PDF ---
+        def buat_pdf(df, bulan, tahun):
+            import calendar
+            pdf = FPDF(orientation='P', unit='mm', format='A4')
+            pdf.add_page()
+            pdf.set_font("Arial", size=12)
+        
+            # Nama bulan
+            bulan_dict = {
+                1: "Januari", 2: "Februari", 3: "Maret", 4: "April", 5: "Mei",
+                6: "Juni", 7: "Juli", 8: "Agustus", 9: "September",
+                10: "Oktober", 11: "November", 12: "Desember"
+            }
+            try:
+                bulan_nama = bulan_dict.get(int(bulan), calendar.month_name[int(bulan)])
+            except Exception:
+                bulan_nama = "Unknown"
+        
+            # Judul
+            pdf.cell(0, 10, txt=f"Jurnal Umum BUMDes - {bulan_nama} {tahun}", ln=True, align="C")
+            pdf.ln(4)
+        
+            # Lebar kolom (total ~190mm area tulis)
+            cols = list(df.columns)
+            preset_widths = {
+                "Tanggal": 25,
+                "Keterangan": 90,
+                "Ref": 20,
+                "Debit (Rp)": 27.5,
+                "Kredit (Rp)": 27.5
+            }
+            if all(c in preset_widths for c in cols):
+                col_widths = [preset_widths[c] for c in cols]
+            else:
+                col_widths = [190 / len(cols)] * len(cols)  # fallback bagi rata
+        
+            # Alignment per kolom
+            def col_align(name):
+                if "(Rp)" in name or name in {"Debit (Rp)", "Kredit (Rp)", "Jumlah", "Jumlah (Rp)"}:
+                    return "R"
+                if name in {"Tanggal", "Ref"}:
+                    return "C"
+                return "L"
+        
+            # Header
+            pdf.set_font("Arial", size=10, style="B")
             for i, col in enumerate(cols):
-                val = row[col]
-                if isinstance(val, (int, float)):
-                    val = f"{val:,.0f}".replace(",", ".")  # format ribuan
-                pdf.cell(col_widths[i], 8, str(val), border=1, align=col_align(col))
+                pdf.cell(col_widths[i], 9, col, border=1, align="C")
             pdf.ln()
+        
+            # Isi
+            pdf.set_font("Arial", size=9)
+            for _, row in df.iterrows():
+                for i, col in enumerate(cols):
+                    val = row[col]
+                    if isinstance(val, (int, float)):
+                        val = f"{val:,.0f}".replace(",", ".")  # format ribuan
+                    pdf.cell(col_widths[i], 8, str(val), border=1, align=col_align(col))
+                pdf.ln()
+        
+            # Kembalikan bytes PDF
+            with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp:
+                pdf.output(tmp.name)
+                tmp.seek(0)
+                return tmp.read()
+        
+        # Penting: gunakan df_final_display (tanpa kolom Akun) untuk PDF
+        pdf_data = buat_pdf(df_final_display, bulan_selected, tahun_selected)
+        st.download_button(
+            "📥 Download PDF",
+            data=pdf_data,
+            file_name=f"jurnal_umum_{bulan_selected}_{tahun_selected}.pdf",
+            mime="application/pdf",
+            use_container_width=True
+        )
     
-        # Kembalikan bytes PDF
-        with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp:
-            pdf.output(tmp.name)
-            tmp.seek(0)
-            return tmp.read()
+    else:
+        st.warning("Belum ada data valid di tabel.")
     
-    # Penting: gunakan df_final_display (tanpa kolom Akun) untuk PDF
-    pdf_data = buat_pdf(df_final_display, bulan_selected, tahun_selected)
-    st.download_button(
-        "📥 Download PDF",
-        data=pdf_data,
-        file_name=f"jurnal_umum_{bulan_selected}_{tahun_selected}.pdf",
-        mime="application/pdf",
-        use_container_width=True
-    )
-else:
-    st.warning("Belum ada data valid di tabel.")        
 # ========================================
 # TAB 2: BUKU BESAR
 # ========================================
