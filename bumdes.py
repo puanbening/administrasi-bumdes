@@ -529,7 +529,7 @@ with tab2:
         # Ambil buku besar TERFILTER periode
         bb_periode = buat_buku_besar_periode(bulan_bukubesar, tahun_bukubesar)
 
-     if not st.session_state.buku_besar:
+    if not st.session_state.buku_besar:
         st.info("ℹ️ Belum ada data untuk buku besar. Silakan isi Jurnal Umum terlebih dahulu.")
     
     else:
