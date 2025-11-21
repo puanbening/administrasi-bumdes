@@ -114,19 +114,18 @@ def create_aggrid(df, key_suffix, height=400):
 
 # === Fungsi untuk membuat buku besar ===
 def buat_buku_besar():
-    # Pastikan kolom numeric benar
-    for col in ["Debit (Rp)", "Kredit (Rp)"]:
-        st.session_state.data[col] = pd.to_numeric(
-            st.session_state.data[col], errors="coerce"
-        ).fillna(0)
+    df = st.session_state.data.copy()
+
+    # Paksa semua kolom numeric jadi float
+    df["Debit (Rp)"] = pd.to_numeric(df["Debit (Rp)"], errors="coerce").fillna(0).astype(float)
+    df["Kredit (Rp)"] = pd.to_numeric(df["Kredit (Rp)"], errors="coerce").fillna(0).astype(float)
 
     buku_besar = {}
 
-    for _, row in st.session_state.data.iterrows():
-        if not row["Akun"] or not str(row["Akun"]).strip():
+    for _, row in df.iterrows():
+        akun = str(row.get("Akun", "")).strip()
+        if not akun:
             continue
-
-        akun = str(row["Akun"]).strip()
 
         if akun not in buku_besar:
             buku_besar[akun] = {
@@ -136,9 +135,15 @@ def buat_buku_besar():
                 "transaksi": []
             }
 
-        # Paksa debit dan kredit jadi float
-        debit = float(row.get("Debit (Rp)", 0) or 0)
-        kredit = float(row.get("Kredit (Rp)", 0) or 0)
+        # Paksa float agar aman
+        try:
+            debit = float(row.get("Debit (Rp)", 0) or 0)
+        except:
+            debit = 0.0
+        try:
+            kredit = float(row.get("Kredit (Rp)", 0) or 0)
+        except:
+            kredit = 0.0
 
         transaksi = {
             "tanggal": row.get("Tanggal", ""),
@@ -165,13 +170,13 @@ def buat_buku_besar():
             })
             buku_besar[akun]["kredit"] += kredit
 
-    # Tambahkan nama akun dari neraca saldo
+    # Update nama akun dari neraca saldo
     for _, row in st.session_state.neraca_saldo.iterrows():
-        akun_no = str(row["No Akun"]).strip()
-        if akun_no and akun_no in buku_besar:
-            buku_besar[akun_no]["nama_akun"] = row["Nama Akun"]
+        akun_no = str(row.get("No Akun", "")).strip()
+        if akun_no in buku_besar:
+            buku_besar[akun_no]["nama_akun"] = row.get("Nama Akun", buku_besar[akun_no]["nama_akun"])
 
-    return buku_besar
+return buku_besar
 
 
 # === Styling ===
