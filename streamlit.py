@@ -256,9 +256,7 @@ with tab1:
 
     new_df = pd.DataFrame(grid_response["data"])
     if "Tanggal" in new_df.columns:
-    new_df["Tanggal"] = pd.to_datetime(new_df["Tanggal"], errors="coerce").dt.date
-
-
+        new_df["Tanggal"] = pd.to_datetime(new_df["Tanggal"], errors="coerce").dt.date
 
     if not new_df.equals(st.session_state.data):
         st.session_state.data = new_df.copy()
