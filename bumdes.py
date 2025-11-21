@@ -67,8 +67,6 @@ def create_aggrid(df, key_suffix, height=400):
     for col in df.columns:
         if "(Rp)" in col:
             gb.configure_column(col, type=["numericColumn"], valueFormatter="value ? value.toLocaleString() : ''")
-
-    gb.configure_column(field="Akun", hide=True, editable=False)
     
     grid_options = gb.build()
     
@@ -98,11 +96,7 @@ def create_aggrid(df, key_suffix, height=400):
 # === Fungsi untuk membuat buku besar ===
 def buat_buku_besar():
     df = st.session_state.data.copy()
-
-    # Pastikan kolom Ref ada (aman untuk sesi lama)
-    if "Ref" not in df.columns:
-        df["Ref"] = ""
-
+    
     # Pastikan kolom numeric adalah float
     for col in ["Debit (Rp)", "Kredit (Rp)"]:
         df[col] = pd.to_numeric(df[col], errors="coerce").fillna(0.0)
@@ -112,46 +106,20 @@ def buat_buku_besar():
         akun = str(row.get("Akun", "")).strip()
         if not akun:
             continue
-
-        # Inisialisasi akun beserta kumpulan ref
+        
         if akun not in buku_besar:
-            buku_besar[akun] = {
-                "nama_akun": f"Akun {akun}",
-                "debit": 0.0,
-                "kredit": 0.0,
-                "transaksi": [],
-                "refs": set(),  # kumpulkan ref per akun
-            }
-
+            buku_besar[akun] = {"nama_akun": f"Akun {akun}", "debit": 0.0, "kredit": 0.0, "transaksi": []}
+        
         debit_val = float(row.get("Debit (Rp)", 0) or 0)
         kredit_val = float(row.get("Kredit (Rp)", 0) or 0)
         tanggal = "" if pd.isna(row.get("Tanggal", "")) else str(row.get("Tanggal", ""))
         keterangan = str(row.get("Keterangan", "")).strip()
-        ref_val = str(row.get("Ref", "")).strip()
-
-        # Simpan ref jika ada
-        if ref_val:
-            buku_besar[akun]["refs"].add(ref_val)
-
-        # Catat transaksi dengan ref
+        
         if debit_val > 0:
-            buku_besar[akun]["transaksi"].append({
-                "tanggal": tanggal,
-                "ref": ref_val,
-                "keterangan": keterangan,
-                "debit": debit_val,
-                "kredit": 0.0
-            })
+            buku_besar[akun]["transaksi"].append({"tanggal": tanggal, "keterangan": keterangan, "debit": debit_val, "kredit": 0.0})
             buku_besar[akun]["debit"] += debit_val
-
         if kredit_val > 0:
-            buku_besar[akun]["transaksi"].append({
-                "tanggal": tanggal,
-                "ref": ref_val,
-                "keterangan": keterangan,
-                "debit": 0.0,
-                "kredit": kredit_val
-            })
+            buku_besar[akun]["transaksi"].append({"tanggal": tanggal, "keterangan": keterangan, "debit": 0.0, "kredit": kredit_val})
             buku_besar[akun]["kredit"] += kredit_val
     
     # Update nama akun dari neraca saldo
@@ -195,8 +163,6 @@ with tab1:
 
     if "grid_key" not in st.session_state:
         st.session_state.grid_key = 0
-    if "data" not in st.session_state:
-        st.session_state.data = pd.DataFrame(columns=["Tanggal", "Keterangan", "Ref", "Akun", "Debit (Rp)", "Kredit (Rp)"])
 
     # --- Input bulan dan tahun ---
     col1, col2 = st.columns(2)
@@ -210,10 +176,9 @@ with tab1:
             format_func=lambda x: x[1]
         )[0]
     with col2:
-        tahun_selected = st.number_input("Tahun", min_value=2000, max_value=2100, 
-                                         value=pd.Timestamp.now().year, step=1)
-
-    # --- Fungsi tambah baris ---
+        tahun_selected = st.number_input("Tahun", min_value=2000, max_value=2100, value=pd.Timestamp.now().year, step=1)
+    
+    # Fungsi untuk menambah baris
     def add_journal_row():
         new_row = pd.DataFrame({
             "Tanggal": [""], 
@@ -223,44 +188,47 @@ with tab1:
             "Debit (Rp)": [0], 
             "Kredit (Rp)": [0]
         })
+        # Simpan data yang ada dulu dari AgGrid
+        #if 'grid_response' in st.session_state:
+            #st.session_state.data = st.session_state.grid_response['data']
+        # Tambah baris baru
         st.session_state.data = pd.concat([st.session_state.data, new_row], ignore_index=True)
         st.session_state.grid_key += 1
-
+    
+    # Tombol tambah baris
     st.button("➕ Tambah Baris Jurnal", key="tambah_jurnal", on_click=add_journal_row)
-
-    # --- Buat versi display tanpa kolom Akun ---
-    df_display = st.session_state.data.drop(columns=["Akun"], errors="ignore")
-
-    # --- Setup AgGrid ---
-    gb = GridOptionsBuilder.from_dataframe(df_display)
+    
+    # Setup AgGrid
+    gb = GridOptionsBuilder.from_dataframe(st.session_state.data)
     gb.configure_default_column(editable=True, resizable=True)
     gb.configure_grid_options(stopEditingWhenCellsLoseFocus=True)
-    for col in df_display.columns:
+    
+    for col in st.session_state.data.columns:
         if "(Rp)" in col:
-            gb.configure_column(col, type=["numericColumn"], 
-                                valueFormatter="value ? value.toLocaleString() : ''")
+            gb.configure_column(col, type=["numericColumn"], valueFormatter="value ? value.toLocaleString() : ''")
+    
     grid_options = gb.build()
-
+    
+    # Render AgGrid
     grid_response = AgGrid(
-        df_display,
+        st.session_state.data,
         gridOptions=grid_options,
         update_mode=GridUpdateMode.VALUE_CHANGED,
         fit_columns_on_grid_load=True,
         allow_unsafe_jscode=True,
+        enable_enterprise_modules=False,
         theme="streamlit",
         height=320,
         key=f"jurnal_grid_{st.session_state.grid_key}",
         reload_data=True
     )
-
-    # --- Sinkronisasi perubahan dari grid ke data asli ---
-    for idx, row in grid_response['data'].iterrows():
-        for col in row.index:
-            if col in st.session_state.data.columns:
-                st.session_state.data.at[idx, col] = row[col]
-
-    # --- Filter data valid ---
+    
+    # Simpan data dari grid ke session state
+    st.session_state.data = grid_response['data']
+    
+    # Tampilkan data yang sudah difilter
     df_clean = st.session_state.data[st.session_state.data["Keterangan"].astype(str).str.strip() != ""]
+    
     if not df_clean.empty:
         total_debit = df_clean["Debit (Rp)"].sum()
         total_kredit = df_clean["Kredit (Rp)"].sum()
@@ -274,22 +242,55 @@ with tab1:
         })
         df_final = pd.concat([df_clean, total_row], ignore_index=True)
 
-        # --- Tampilkan tabel final tanpa kolom Akun ---
-        df_final_display = df_final.drop(columns=["Akun"], errors="ignore").copy()
-        df_final_display.index = range(1, len(df_final_display) + 1)
-        df_final_display.index.name = "No"
-
         st.write("### 📊 Hasil Jurnal")
-        st.dataframe(
-            df_final_display.style.format({
-                "Debit (Rp)": format_rupiah,
-                "Kredit (Rp)": format_rupiah
-            }),
-            use_container_width=True
-        )
+        df_final_display = df_final.copy()
+        df_final_display.index = range(1, len(df_final_display)+1)
+        df_final_display.index.name = "No"
+        st.dataframe(df_final_display.style.format({
+            "Debit (Rp)": format_rupiah,
+            "Kredit (Rp)": format_rupiah
+        }))
 
         # --- PDF ---
-        pdf_data = buat_pdf(df_final_display, bulan_selected, tahun_selected)
+        def buat_pdf(df, bulan, tahun):
+            import calendar
+            pdf = FPDF()
+            pdf.add_page()
+            pdf.set_font("Arial", size=12)
+            
+            bulan_dict = {
+                1: "Januari", 2: "Februari", 3: "Maret", 4: "April", 5: "Mei",
+                6: "Juni", 7: "Juli", 8: "Agustus", 9: "September",
+                10: "Oktober", 11: "November", 12: "Desember"
+            }
+            try:
+                bulan_nama = bulan_dict.get(int(bulan), calendar.month_name[int(bulan)])
+            except:
+                bulan_nama = "Unknown"
+            
+            pdf.cell(200, 10, txt=f"Jurnal Umum BUMDes - {bulan_nama} {tahun}", ln=True, align="C")
+            pdf.ln(8)
+        
+            col_width = 190 / len(df.columns)
+            pdf.set_font("Arial", size=10, style="B")
+            for col in df.columns:
+                pdf.cell(col_width, 10, col, border=1, align="C")
+            pdf.ln()
+        
+            pdf.set_font("Arial", size=9)
+            for _, row in df.iterrows():
+                for item in row:
+                    if isinstance(item, (int, float)):
+                        item = f"{item:,.0f}".replace(",", ".")
+                    pdf.cell(col_width, 8, str(item), border=1, align="C")
+                pdf.ln()
+        
+            with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp:
+                pdf.output(tmp.name)
+                tmp.seek(0)
+                return tmp.read()
+        
+        pdf_data = buat_pdf(df_final, bulan_selected, tahun_selected)
         st.download_button(
             "📥 Download PDF",
             data=pdf_data,
@@ -299,7 +300,8 @@ with tab1:
         )
     else:
         st.warning("Belum ada data valid di tabel.")
-    
+
+        
 # ========================================
 # TAB 2: BUKU BESAR
 # ========================================
@@ -313,18 +315,16 @@ with tab2:
         st.info("ℹ️ Belum ada data untuk buku besar. Silakan isi Jurnal Umum terlebih dahulu.")
     
     else:
-        # Buat pilihan label: "Ref(s) - Nama Akun" jika ada ref, else hanya nama akun
-        akun_labels = {}
-        for k, v in st.session_state.buku_besar.items():
-            refs = sorted([r for r in v.get("refs", set()) if r])  # hanya non-kosong
-            ref_label = ", ".join(refs)
-            label = f"{ref_label} - {v['nama_akun']}" if ref_label else v["nama_akun"]
-            akun_labels[k] = label
-        # Selectbox menampilkan label "ref-akun"
+        # Buat pilihan berdasarkan nama akun asli
+        akun_labels = {k: v["nama_akun"] for k, v in st.session_state.buku_besar.items()}
+        
+        # Selectbox menampilkan hanya nama akun
         selected_label = st.selectbox("Pilih Akun:", akun_labels.values())
+        
         # Cari key berdasarkan label
         akun_no = [k for k, v in akun_labels.items() if v == selected_label][0]
         akun_data = st.session_state.buku_besar[akun_no]
+
 
         col1, col2, col3 = st.columns(3)
         with col1:
@@ -335,7 +335,7 @@ with tab2:
         # Tabel transaksi
         if akun_data["transaksi"]:
             df_transaksi = pd.DataFrame(akun_data["transaksi"])
-            st.write(f"### Transaksi Akun: {akun_labels[akun_no]}")
+            st.write(f"### Transaksi Akun: {akun_data['nama_akun']}")
 
             df_transaksi_display = df_transaksi.copy()
             df_transaksi_display.index = range(1, len(df_transaksi_display) + 1)
