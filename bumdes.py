@@ -157,7 +157,6 @@ tab1, tab2, tab3, tab4 = st.tabs(["🧾 Jurnal Umum", "📚 Buku Besar", "💵 N
 # ========================================
 # TAB 1: JURNAL UMUM
 # ========================================
-# === TAB 1: JURNAL UMUM (versi perbaikan) ===
 with tab1:
     st.header("🧾 Jurnal Umum")
     st.info("💡 Tekan Enter sekali untuk menyimpan perubahan otomatis.")
@@ -269,8 +268,8 @@ with tab1:
         mime="application/pdf",
         use_container_width=True
     )
-    else:
-        st.warning("Belum ada data valid di tabel.")
+else:
+    st.warning("Belum ada data valid di tabel.")
         
 # ========================================
 # TAB 2: BUKU BESAR
