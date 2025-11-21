@@ -78,86 +78,91 @@ def format_rupiah(x):
     except Exception:
         return x
 
-# Fungsi format tanggal
-def parse_date_safe(s):
+# === Fungsi format rupiah ===
+def format_rupiah(x):
     try:
-        return pd.to_datetime(s, format="%Y-%m-%d", errors="raise").date()
+        if x < 0:
+            return f"({abs(x):,.0f})".replace(",", ".")
+        return f"{x:,.0f}".replace(",", ".")
     except:
-        return None
-        
-# === Fungsi AgGrid ===
+        return x
+
+# === Fungsi AgGrid aman ===
 def create_aggrid(df, key_suffix, height=400):
+    df = df.fillna("").astype(str)  # pastikan semua string agar valueParser aman
     gb = GridOptionsBuilder.from_dataframe(df)
     gb.configure_default_column(editable=True, resizable=True)
     gb.configure_grid_options(stopEditingWhenCellsLoseFocus=False)
-    
+
     for col in df.columns:
         if "(Rp)" in col:
-            gb.configure_column(col, type=["numericColumn"], valueFormatter="value ? value.toLocaleString() : ''")
-    
-    grid_options = gb.build()
-    
-    grid_response = AgGrid(
-        df,
-        gridOptions=grid_options,
-        update_mode=GridUpdateMode.VALUE_CHANGED,
-        fit_columns_on_grid_load=True,
-        allow_unsafe_jscode=True,
-        enable_enterprise_modules=False,
-        theme="streamlit",
-        height=height,
-        key=f"aggrid_{key_suffix}",
-        reload_data=False
-    )
-    
-    return pd.DataFrame(grid_response["data"])
+            gb.configure_column(
+                col,
+                type=["numericColumn"],
+                valueFormatter="value ? value.toLocaleString() : 0"
+            )
+        if col == "Tanggal":
+            gb.configure_column(
+                col,
+                editable=True,
+                cellEditor="agDateCellEditor",
+                valueFormatter="value ? value.toLocaleDateString('en-CA') : ''",
+                valueParser="""
+                    function(params){
+                        try{
+                            if(!params.newValue) return '';
+                            const d = new Date(params.newValue);
+                            if(isNaN(d)) return '';
+                            return d.toISOString().split('T')[0];
+                        } catch(e){
+                            return '';
+                        }
+                    }
+                """
+            )
 
-# === Fungsi untuk membuat buku besar ===
+    grid_options = gb.build()
+    try:
+        grid_response = AgGrid(
+            df,
+            gridOptions=grid_options,
+            update_mode=GridUpdateMode.VALUE_CHANGED,
+            fit_columns_on_grid_load=True,
+            allow_unsafe_jscode=True,
+            enable_enterprise_modules=False,
+            theme="streamlit",
+            height=height,
+            key=f"aggrid_{key_suffix}",
+        )
+        return pd.DataFrame(grid_response["data"])
+    except Exception as e:
+        st.error(f"AgGrid error: {e}")
+        return df
+
+# === Fungsi buat buku besar ===
 def buat_buku_besar():
-    # Inisialisasi struktur buku besar berdasarkan referensi akun
     buku_besar = {}
-    
-    # Proses setiap entri jurnal
     for _, row in st.session_state.data.iterrows():
-        if not row["Akun"] or not str(row["Akun"]).strip():
+        akun = str(row.get("Akun","")).strip()
+        if not akun:
             continue
-            
-        akun = str(row["Akun"]).strip()
-        
-        # Buat entri baru jika akun belum ada
         if akun not in buku_besar:
-            buku_besar[akun] = {
-                "nama_akun": f"Akun {akun}",
-                "debit": 0,
-                "kredit": 0,
-                "transaksi": []
-            }
-        
-        # Tambahkan transaksi
-        if row["Debit (Rp)"] > 0:
-            buku_besar[akun]["transaksi"].append({
-                "tanggal": row["Tanggal"],
-                "keterangan": row["Keterangan"],
-                "debit": row["Debit (Rp)"],
-                "kredit": 0
-            })
-            buku_besar[akun]["debit"] += row["Debit (Rp)"]
-        
-        if row["Kredit (Rp)"] > 0:
-            buku_besar[akun]["transaksi"].append({
-                "tanggal": row["Tanggal"],
-                "keterangan": row["Keterangan"],
-                "debit": 0,
-                "kredit": row["Kredit (Rp)"]
-            })
-            buku_besar[akun]["kredit"] += row["Kredit (Rp)"]
-    
-    # Tambahkan nama akun dari neraca saldo jika tersedia
+            buku_besar[akun] = {"nama_akun": f"Akun {akun}", "debit": 0, "kredit": 0, "transaksi": []}
+
+        debit = row.get("Debit (Rp)", 0) or 0
+        kredit = row.get("Kredit (Rp)", 0) or 0
+        transaksi = {"tanggal": row.get("Tanggal",""), "keterangan": row.get("Keterangan",""), "debit": debit, "kredit": kredit}
+        if debit > 0:
+            buku_besar[akun]["transaksi"].append(transaksi)
+            buku_besar[akun]["debit"] += debit
+        if kredit > 0:
+            buku_besar[akun]["transaksi"].append(transaksi)
+            buku_besar[akun]["kredit"] += kredit
+
     for _, row in st.session_state.neraca_saldo.iterrows():
-        akun_no = str(row["No Akun"]).strip()
+        akun_no = str(row.get("No Akun","")).strip()
         if akun_no and akun_no in buku_besar:
-            buku_besar[akun_no]["nama_akun"] = row["Nama Akun"]
-    
+            buku_besar[akun_no]["nama_akun"] = row.get("Nama Akun","")
     return buku_besar
 
 # === Styling ===
@@ -181,179 +186,81 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # === Tabs ===
-tab1, tab2, tab3, tab4 = st.tabs([
-    "🧾 Jurnal Umum", 
-    "📚 Buku Besar", 
-    "💵 Neraca Saldo",
-    "📊 Laporan Keuangan"
-])
+tab1, tab2, tab3, tab4 = st.tabs(["🧾 Jurnal Umum","📚 Buku Besar","💵 Neraca Saldo","📊 Laporan Keuangan"])
 
-# ========================================
-# TAB 1: JURNAL UMUM
-# ========================================
+# === TAB 1: JURNAL UMUM ===
 with tab1:
     st.header("🧾 Jurnal Umum")
     st.info("💡 Tekan Enter sekali untuk menyimpan perubahan otomatis.")
 
-    # --- Input bulan dan tahun ---
+    # Pilih bulan & tahun
     col1, col2 = st.columns(2)
     with col1:
-        bulan_selected = st.selectbox(
-            "Pilih Bulan", 
-            options=[
-                ("01", "Januari"), ("02", "Februari"), ("03", "Maret"),
-                ("04", "April"), ("05", "Mei"), ("06", "Juni"),
-                ("07", "Juli"), ("08", "Agustus"), ("09", "September"),
-                ("10", "Oktober"), ("11", "November"), ("12", "Desember")
-            ],
-            format_func=lambda x: x[1]
-        )[0]  # ambil kode bulan "01"-"12"
+        bulan_selected = st.selectbox("Pilih Bulan", options=[("01","Januari"),("02","Februari"),("03","Maret"),
+            ("04","April"),("05","Mei"),("06","Juni"),("07","Juli"),("08","Agustus"),
+            ("09","September"),("10","Oktober"),("11","November"),("12","Desember")],
+            format_func=lambda x: x[1])[0]
     with col2:
         tahun_selected = st.number_input("Tahun", min_value=2000, max_value=2100, value=pd.Timestamp.now().year, step=1)
-        
-    # Tombol tambah baris untuk Jurnal Umum
+
+    # Tombol tambah baris
     if st.button("➕ Tambah Baris Jurnal", key="tambah_jurnal"):
         new_row = pd.DataFrame([{"Tanggal": "", "Keterangan": "", "Akun": "", "Debit (Rp)": 0, "Kredit (Rp)": 0}])
         st.session_state.data = pd.concat([st.session_state.data, new_row], ignore_index=True)
         st.rerun()
 
-    # Konfigurasi Grid 
-    gb = GridOptionsBuilder.from_dataframe(st.session_state.data)
-    gb.configure_default_column(editable=True, resizable=True)
-    gb.configure_grid_options(stopEditingWhenCellsLoseFocus=False)
-    gb.configure_column(
-    "Tanggal",
-    editable=True,
-    cellEditor="agDateCellEditor",
-    valueFormatter="value ? new Date(value).toLocaleDateString('en-CA') : ''",
-    valueParser="""
-        function(params){
-            if (!params.newValue) return '';
-            // Konversi ke tanggal ISO
-            const d = new Date(params.newValue);
-            if (isNaN(d)) return '';
-            return d.toISOString().split('T')[0]; // "YYYY-MM-DD"
-        }
-    """
-    )
-    gb.configure_column("Keterangan", header_name="Keterangan")
-    gb.configure_column("Akun", header_name="Akun (contoh: Perlengkapan)")
-    gb.configure_column("Debit (Rp)", type=["numericColumn"], valueFormatter="value ? value.toLocaleString() : ''")
-    gb.configure_column("Kredit (Rp)", type=["numericColumn"], valueFormatter="value ? value.toLocaleString() : ''")
+    # Tampilkan AgGrid
+    new_df = create_aggrid(st.session_state.data, "jurnal", height=320)
+    st.session_state.data = new_df.copy()
 
-    grid_options = gb.build()
-
-    grid_response = AgGrid(
-        st.session_state.data,
-        gridOptions=grid_options,
-        update_mode=GridUpdateMode.VALUE_CHANGED,
-        fit_columns_on_grid_load=True,
-        allow_unsafe_jscode=True,
-        enable_enterprise_modules=False,
-        theme="streamlit",
-        height=320,
-        key="aggrid_jurnal",
-        reload_data=False
-    )
-
-    new_df = pd.DataFrame(grid_response["data"])
-    if "Tanggal" in new_df.columns:
-        # ubah semua jadi string dulu, strip whitespace
-        new_df["Tanggal"] = new_df["Tanggal"].astype(str).str.strip()
-        
-        # ubah string kosong atau "None"/"nan" menjadi NaN
-        new_df["Tanggal"] = new_df["Tanggal"].replace({"": pd.NA, "None": pd.NA, "nan": pd.NA})
-        
-        # konversi ke datetime, invalid jadi NaT
-        new_df["Tanggal"] = pd.to_datetime(new_df["Tanggal"], errors="coerce")
-        
-        # ubah NaT menjadi string kosong agar tampil di st.dataframe
-        new_df["Tanggal"] = new_df["Tanggal"].dt.strftime('%Y-%m-%d').fillna('')
-
-    if not new_df.equals(st.session_state.data):
-        st.session_state.data = new_df.copy()
-
+    # Filter data valid
     df_clean = new_df[new_df["Keterangan"].astype(str).str.strip() != ""]
-
     if not df_clean.empty:
         total_debit = df_clean["Debit (Rp)"].sum()
         total_kredit = df_clean["Kredit (Rp)"].sum()
-        total_row = pd.DataFrame({
-            "Tanggal": [""],
-            "Keterangan": ["TOTAL"],
-            "Akun": [""],
-            "Debit (Rp)": [total_debit],
-            "Kredit (Rp)": [total_kredit],
-        })
+        total_row = pd.DataFrame({"Tanggal":[""],"Keterangan":["TOTAL"],"Akun":[""],"Debit (Rp)":[total_debit],"Kredit (Rp)":[total_kredit]})
         df_final = pd.concat([df_clean, total_row], ignore_index=True)
 
         st.write("### 📊 Hasil Jurnal")
-        df_final_display = df_final.copy()
-        df_final_display.index = range(1, len(df_final_display) + 1)
-        df_final_display.index.name = "No"
-    
-        
-        st.dataframe(df_final_display.style.format({
-            "Debit (Rp)": format_rupiah,
-            "Kredit (Rp)": format_rupiah
-        }))
+        df_display = df_final.copy()
+        df_display.index = range(1,len(df_display)+1)
+        df_display.index.name = "No"
 
+        st.dataframe(df_display.style.format({"Debit (Rp)": format_rupiah,"Kredit (Rp)": format_rupiah}))
+
+        # PDF
         def buat_pdf(df, bulan, tahun):
             import calendar
             pdf = FPDF()
             pdf.add_page()
             pdf.set_font("Arial", size=12)
-            
-            # Konversi angka bulan ke nama bulan Indonesia
-            bulan_dict = {
-                1: "Januari",
-                2: "Februari",
-                3: "Maret",
-                4: "April",
-                5: "Mei",
-                6: "Juni",
-                7: "Juli",
-                8: "Agustus",
-                9: "September",
-                10: "Oktober",
-                11: "November",
-                12: "Desember"
-            }
-            
+            bulan_dict = {1:"Januari",2:"Februari",3:"Maret",4:"April",5:"Mei",6:"Juni",
+                          7:"Juli",8:"Agustus",9:"September",10:"Oktober",11:"November",12:"Desember"}
             bulan_nama = bulan_dict.get(int(bulan), calendar.month_name[int(bulan)])
-            pdf.cell(200, 10, txt=f"Jurnal Umum BUMDes - {bulan_nama} {tahun}", ln=True, align="C")
+            pdf.cell(200,10,txt=f"Jurnal Umum BUMDes - {bulan_nama} {tahun}",ln=True,align="C")
             pdf.ln(8)
-        
-            col_width = 190 / len(df.columns)
-            # Header tabel
-            pdf.set_font("Arial", size=10, style="B")  # Bold untuk header
+            col_width = 190/len(df.columns)
+            pdf.set_font("Arial", size=10, style="B")
             for col in df.columns:
-                pdf.cell(col_width, 10, col, border=1, align="C")
+                pdf.cell(col_width,10,col,border=1,align="C")
             pdf.ln()
-        
-            pdf.set_font("Arial", size=9)  # Ukuran font lebih kecil untuk konten
+            pdf.set_font("Arial", size=9)
             for _, row in df.iterrows():
                 for item in row:
-                    # Format angka jika nilai numerik
-                    if isinstance(item, (int, float)):
-                        item = f"{item:,.0f}".replace(",", ".")
-                    pdf.cell(col_width, 8, str(item), border=1, align="C")
+                    if isinstance(item,(int,float)):
+                        item = f"{item:,.0f}".replace(",",".")
+
+                    pdf.cell(col_width,8,str(item),border=1,align="C")
                 pdf.ln()
-        
-            with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp:
+            with tempfile.NamedTemporaryFile(delete=False,suffix=".pdf") as tmp:
                 pdf.output(tmp.name)
                 tmp.seek(0)
                 return tmp.read()
-        
-        # Pastikan bulan_selected adalah angka (bukan nama bulan)
+
         pdf_data = buat_pdf(df_final, bulan_selected, tahun_selected)
-        st.download_button(
-            "📥 Download PDF",
-            data=pdf_data,
-            file_name=f"jurnal_umum_{bulan_selected}_{tahun_selected}.pdf",
-            mime="application/pdf",
-            use_container_width=True
-        )
+        st.download_button("📥 Download PDF", data=pdf_data,
+                           file_name=f"jurnal_umum_{bulan_selected}_{tahun_selected}.pdf",
+                           mime="application/pdf", use_container_width=True)
     else:
         st.warning("Belum ada data valid di tabel.")
         
