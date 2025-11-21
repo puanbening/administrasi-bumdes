@@ -271,6 +271,9 @@ with tab1:
     )
 
     new_df = pd.DataFrame(grid_response["data"])
+    for col in ["Debit (Rp)", "Kredit (Rp)"]:
+        if col in new_df.columns:
+            new_df[col] = pd.to_numeric(new_df[col], errors="coerce").fillna(0)
     if "Tanggal" in new_df.columns:
         # ubah semua jadi string dulu, strip whitespace
         new_df["Tanggal"] = new_df["Tanggal"].astype(str).str.strip()
