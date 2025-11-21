@@ -614,9 +614,6 @@ with tab3:
 
     # INFO
     #st.info("💡 Neraca Saldo di bawah ini disinkron otomatis dari Buku Besar. ")
-
-    # Bangun Buku Besar khusus periode yang dipilih
-    bb_periode = buat_buku_besar_periode(bulan_neraca, tahun_neraca)
     
     # Auto-sync 
     sync_neraca_from_bb(bb_periode, non_destructive=True)
@@ -649,6 +646,9 @@ with tab3:
             "Tahun", min_value=2000, max_value=2100, value=2025, step=1, key="tahun_neraca"
         )
     st.subheader(f"Periode: {bulan_dict[bulan_neraca]} {tahun_neraca}")
+
+    # Bangun Buku Besar khusus periode yang dipilih
+    bb_periode = buat_buku_besar_periode(bulan_neraca, tahun_neraca)
     
     # Tombol kontrol
     col1, col2, col3 = st.columns(3)
