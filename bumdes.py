@@ -598,6 +598,11 @@ with tab2:
         else:
             st.info("Tidak ada transaksi untuk akun ini.")
             
+if "neraca_saldo" not in st.session_state:
+    st.session_state.neraca_saldo = pd.DataFrame([
+        {"Ref": "", "Akun": "", "Debit (Rp)": 0, "Kredit (Rp)": 0}
+    ])
+sync_neraca_from_bukubesar(non_destructive=True)
 # ========================================
 # TAB 3: NERACA SALDO (REVISI LENGKAP)
 # ========================================
@@ -678,9 +683,51 @@ with tab3:
             st.rerun()
 
     # Info counter
+    # ————— Normalisasi aman untuk st.session_state.neraca_saldo —————
+    ns = st.session_state.get("neraca_saldo")
+    
+    # Pastikan selalu tipe DataFrame
+    if not isinstance(ns, pd.DataFrame):
+        st.warning("Session state neraca_saldo bukan DataFrame — memperbaiki otomatis.")
+        ns = pd.DataFrame([{"Ref": "", "Akun": "", "Debit (Rp)": 0, "Kredit (Rp)": 0}])
+    
+    # Bersihkan nama kolom dari spasi aneh
+    rename_map = {}
+    for col in ns.columns:
+        col_clean = col.lower().replace(" ", "").replace(".", "")
+        if col_clean in ["ref"]:
+            rename_map[col] = "Ref"
+        elif col_clean in ["akun", "account", "namaakun"]:
+            rename_map[col] = "Akun"
+        elif col_clean in ["debit(rp)", "debitrp", "debit"]:
+            rename_map[col] = "Debit (Rp)"
+        elif col_clean in ["kredit(rp)", "kreditrp", "kredit"]:
+            rename_map[col] = "Kredit (Rp)"
+    
+    ns = ns.rename(columns=rename_map)
+    
+    # Pastikan semua kolom ada
+    required_cols = ["Ref", "Akun", "Debit (Rp)", "Kredit (Rp)"]
+    for c in required_cols:
+        if c not in ns.columns:
+            ns[c] = "" if c in ["Ref", "Akun"] else 0
+    
+    # Pastikan kolom angka aman
+    ns["Debit (Rp)"] = pd.to_numeric(ns["Debit (Rp)"], errors="coerce").fillna(0)
+    ns["Kredit (Rp)"] = pd.to_numeric(ns["Kredit (Rp)"], errors="coerce").fillna(0)
+    
+    # Simpan kembali
+    st.session_state.neraca_saldo = ns.reset_index(drop=True)
+    
+    # ————— Hitung counter dengan aman —————
     total_rows = len(st.session_state.neraca_saldo)
-    filled_rows = len(st.session_state.neraca_saldo[st.session_state.neraca_saldo["Akun"].astype(str).str.strip() != ""])
+    filled_rows = len(
+        st.session_state.neraca_saldo[
+            st.session_state.neraca_saldo["Akun"].astype(str).str.strip() != ""
+        ]
+    )
     st.caption(f"📊 Total Baris: {total_rows} | Terisi: {filled_rows} | Kosong: {total_rows - filled_rows}")
+
 
     # --- Sistem Penghapusan dengan Checkbox ---
     df_terisi = st.session_state.neraca_saldo[st.session_state.neraca_saldo["Akun"].astype(str).str.strip() != ""]
