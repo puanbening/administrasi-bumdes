@@ -78,116 +78,101 @@ def format_rupiah(x):
     except Exception:
         return x
 
-# === Fungsi format rupiah ===
-def format_rupiah(x):
+# Fungsi format tanggal
+def ensure_date(value):
+    if value is None:
+        return None
+    if isinstance(value, (pd.Timestamp, datetime)):
+        return value.date() if isinstance(value, datetime) else value.date()
+    if isinstance(value, str):
+        value = value.strip()
+    if value == "":
+        return None
+    for fmt in ("%Y-%m-%d", "%d/%m/%Y", "%m/%d/%Y", "%d-%m-%Y"):
+        try:
+            return datetime.strptime(value, fmt).date()
+        except Exception:
+            continue
     try:
-        if x < 0:
-            return f"({abs(x):,.0f})".replace(",", ".")
-        return f"{x:,.0f}".replace(",", ".")
-    except:
-        return x
-
-# === Fungsi AgGrid aman ===
+        return pd.to_datetime(value, errors="coerce").date()
+    except Exception:
+        return None
+    return None
+        
+# === Fungsi AgGrid ===
 def create_aggrid(df, key_suffix, height=400):
-    df = df.fillna("").astype(str)  # pastikan semua string agar valueParser aman
     gb = GridOptionsBuilder.from_dataframe(df)
     gb.configure_default_column(editable=True, resizable=True)
     gb.configure_grid_options(stopEditingWhenCellsLoseFocus=False)
-
+    
     for col in df.columns:
         if "(Rp)" in col:
-            gb.configure_column(
-                col,
-                type=["numericColumn"],
-                valueFormatter="value ? value.toLocaleString() : 0"
-            )
-        if col == "Tanggal":
-            gb.configure_column(
-                col,
-                editable=True,
-                cellEditor="agDateCellEditor",
-                valueFormatter="value ? value.toLocaleDateString('en-CA') : ''",
-                valueParser="""
-                    function(params){
-                        try{
-                            if(!params.newValue) return '';
-                            const d = new Date(params.newValue);
-                            if(isNaN(d)) return '';
-                            return d.toISOString().split('T')[0];
-                        } catch(e){
-                            return '';
-                        }
-                    }
-                """
-            )
-
+            gb.configure_column(col, type=["numericColumn"], valueFormatter="value ? value.toLocaleString() : ''")
+    
     grid_options = gb.build()
-    try:
-        grid_response = AgGrid(
-            df,
-            gridOptions=grid_options,
-            update_mode=GridUpdateMode.VALUE_CHANGED,
-            fit_columns_on_grid_load=True,
-            allow_unsafe_jscode=True,
-            enable_enterprise_modules=False,
-            theme="streamlit",
-            height=height,
-            key=f"aggrid_{key_suffix}",
-        )
-        return pd.DataFrame(grid_response["data"])
-    except Exception as e:
-        st.error(f"AgGrid error: {e}")
-        return df
+    
+    grid_response = AgGrid(
+        df,
+        gridOptions=grid_options,
+        update_mode=GridUpdateMode.VALUE_CHANGED,
+        fit_columns_on_grid_load=True,
+        allow_unsafe_jscode=True,
+        enable_enterprise_modules=False,
+        theme="streamlit",
+        height=height,
+        key=f"aggrid_{key_suffix}",
+        reload_data=False
+    )
+    
+    return pd.DataFrame(grid_response["data"])
 
+# === Fungsi untuk membuat buku besar ===
 def buat_buku_besar():
+    # Inisialisasi struktur buku besar berdasarkan referensi akun
     buku_besar = {}
-
+    
+    # Proses setiap entri jurnal
     for _, row in st.session_state.data.iterrows():
-        akun = str(row.get("Akun", "")).strip()
-        if not akun:
+        if not row["Akun"] or not str(row["Akun"]).strip():
             continue
-
-        # convert debit/kredit ke float, fallback 0
-        debit = 0
-        kredit = 0
-        try:
-            debit = float(row.get("Debit (Rp)", 0) or 0)
-        except:
-            debit = 0
-        try:
-            kredit = float(row.get("Kredit (Rp)", 0) or 0)
-        except:
-            kredit = 0
-
+            
+        akun = str(row["Akun"]).strip()
+        
+        # Buat entri baru jika akun belum ada
         if akun not in buku_besar:
-            buku_besar[akun] = {"nama_akun": f"Akun {akun}", "debit": 0, "kredit": 0, "transaksi": []}
-
-        if debit > 0:
+            buku_besar[akun] = {
+                "nama_akun": f"Akun {akun}",
+                "debit": 0,
+                "kredit": 0,
+                "transaksi": []
+            }
+        
+        # Tambahkan transaksi
+        if row["Debit (Rp)"] > 0:
             buku_besar[akun]["transaksi"].append({
-                "tanggal": row.get("Tanggal", ""),
-                "keterangan": row.get("Keterangan", ""),
-                "debit": debit,
+                "tanggal": row["Tanggal"],
+                "keterangan": row["Keterangan"],
+                "debit": row["Debit (Rp)"],
                 "kredit": 0
             })
-            buku_besar[akun]["debit"] += debit
-
-        if kredit > 0:
+            buku_besar[akun]["debit"] += row["Debit (Rp)"]
+        
+        if row["Kredit (Rp)"] > 0:
             buku_besar[akun]["transaksi"].append({
-                "tanggal": row.get("Tanggal", ""),
-                "keterangan": row.get("Keterangan", ""),
+                "tanggal": row["Tanggal"],
+                "keterangan": row["Keterangan"],
                 "debit": 0,
-                "kredit": kredit
+                "kredit": row["Kredit (Rp)"]
             })
-            buku_besar[akun]["kredit"] += kredit
-
-    # update nama akun dari neraca saldo
+            buku_besar[akun]["kredit"] += row["Kredit (Rp)"]
+    
+    # Tambahkan nama akun dari neraca saldo jika tersedia
     for _, row in st.session_state.neraca_saldo.iterrows():
-        akun_no = str(row.get("No Akun", "")).strip()
-        if akun_no in buku_besar:
-            buku_besar[akun_no]["nama_akun"] = row.get("Nama Akun", buku_besar[akun_no]["nama_akun"])
-
+        akun_no = str(row["No Akun"]).strip()
+        if akun_no and akun_no in buku_besar:
+            buku_besar[akun_no]["nama_akun"] = row["Nama Akun"]
+    
     return buku_besar
-
 
 # === Styling ===
 st.markdown("""
