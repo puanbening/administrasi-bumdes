@@ -1,107 +1,123 @@
 import streamlit as st
-import pandas as pd
 from st_aggrid import AgGrid, GridOptionsBuilder, GridUpdateMode
+import pandas as pd
 
-st.title("📘 Jurnal Umum BUMDes")
+st.title("📘 Jurnal Umum — Input Manual")
 
-# --------------------------------------------------------
-# INPUT BULAN DARI USER
-# --------------------------------------------------------
-bulan = st.text_input("Masukkan Bulan dan Tahun (contoh: Januari 2025)", "")
-
-if bulan:
-    st.write(f"### Periode: **{bulan}**")
-
-# --------------------------------------------------------
-# SESSION STATE untuk menyimpan tabel
-# --------------------------------------------------------
-if "jurnal_df" not in st.session_state:
-    st.session_state.jurnal_df = pd.DataFrame({
-        "Tanggal": [],
-        "Keterangan": [],
-        "Debit (Rp)": [],
-        "Kredit (Rp)": []
-    })
-
-
-# --------------------------------------------------------
-# TOMBOL TAMBAH & HAPUS BARIS
-# --------------------------------------------------------
-colA, colB = st.columns(2)
-
-with colA:
-    if st.button("➕ Tambah Baris"):
-        st.session_state.jurnal_df.loc[len(st.session_state.jurnal_df)] = ["", "", 0, 0]
-
-with colB:
-    if st.button("🗑 Hapus Baris Terpilih"):
-        if "selected" in st.session_state:
-            st.session_state.jurnal_df = st.session_state.jurnal_df.drop(
-                index=st.session_state.selected
-            ).reset_index(drop=True)
-        else:
-            st.warning("Pilih baris dahulu untuk menghapus.")
-
-
-# --------------------------------------------------------
-# AGGRID CONFIG
-# --------------------------------------------------------
-gb = GridOptionsBuilder.from_dataframe(st.session_state.jurnal_df)
-gb.configure_default_column(editable=True)
-gb.configure_selection(selection_mode="multiple", use_checkbox=True)
-gb.configure_pagination(enabled=True)
-grid_options = gb.build()
-
-# --------------------------------------------------------
-# TABEL AGGRID
-# --------------------------------------------------------
-grid = AgGrid(
-    st.session_state.jurnal_df,
-    gridOptions=grid_options,
-    update_mode=GridUpdateMode.SELECTION_CHANGED | GridUpdateMode.VALUE_CHANGED,
-    fit_columns_on_grid_load=True,
-    theme="balham"
+# ================================
+# 1. INPUT BULAN DARI USER
+# ================================
+bulan = st.selectbox(
+    "Pilih Bulan",
+    ["Januari", "Februari", "Maret", "April", "Mei", "Juni", "Juli",
+     "Agustus", "September", "Oktober", "November", "Desember"],
 )
 
-# Ambil hasil edit user
-updated_df = pd.DataFrame(grid["data"])
-selected_rows = grid["selected_rows"]
-
-# Simpan row selection
-st.session_state.selected = [r["_selectedRowNodeInfo"]["nodeRowIndex"] for r in selected_rows] if selected_rows else []
+st.write(f"### Bulan dipilih: **{bulan}**")
 
 
-# --------------------------------------------------------
-# VALIDASI OTOMATIS
-# --------------------------------------------------------
-errors = []
+# ======================================
+# 2. SIAPKAN SESSION STATE UNTUK TABEL
+# ======================================
+if "df" not in st.session_state:
+    st.session_state.df = pd.DataFrame(
+        {
+            "Tanggal": [""],
+            "Akun": [""],
+            "Debit": [0],
+            "Kredit": [0],
+            "Keterangan": [""],
+        }
+    )
 
-# Konversi ke numeric
-updated_df["Debit (Rp)"] = pd.to_numeric(updated_df["Debit (Rp)"], errors="coerce").fillna(0)
-updated_df["Kredit (Rp)"] = pd.to_numeric(updated_df["Kredit (Rp)"], errors="coerce").fillna(0)
 
-# Cek validasi debit & kredit
-for idx, row in updated_df.iterrows():
-    if row["Debit (Rp)"] > 0 and row["Kredit (Rp)"] > 0:
-        errors.append(f"Baris {idx+1}: Debit & Kredit tidak boleh terisi bersamaan.")
+# ======================================
+# 3. CONFIG AGGRID
+# ======================================
+gb = GridOptionsBuilder.from_dataframe(st.session_state.df)
+gb.configure_default_column(editable=True, wrapText=True, autoHeight=True)
+
+# Opsi pemilihan baris untuk hapus
+gb.configure_selection('single', use_checkbox=True)
+
+grid_options = gb.build()
+
+# Show Grid
+grid_response = AgGrid(
+    st.session_state.df,
+    gridOptions=grid_options,
+    update_mode=GridUpdateMode.MODEL_CHANGED,
+    theme='material',
+    allow_unsafe_jscode=True,
+    height=300
+)
+
+# Update dataframe setelah diedit
+st.session_state.df = grid_response["data"]
+
+
+# ======================================
+# 4. TOMBOL TAMBAH BARIS
+# ======================================
+if st.button("➕ Tambah Baris"):
+    st.session_state.df.loc[len(st.session_state.df)] = ["", "", 0, 0, ""]
+    st.experimental_rerun()
+
+
+# ======================================
+# 5. TOMBOL HAPUS BARIS
+# ======================================
+selected_rows = grid_response["selected_rows"]
+
+if st.button("❌ Hapus Baris"):
+    if selected_rows:
+        index_to_delete = selected_rows[0]["_selectedRowNodeInfo"]["nodeRowIndex"]
+        st.session_state.df = st.session_state.df.drop(index_to_delete).reset_index(drop=True)
+        st.experimental_rerun()
+    else:
+        st.warning("Pilih baris dahulu yang ingin dihapus!")
+
+
+# ======================================
+# 6. VALIDASI OTOMATIS
+# ======================================
+def validate(df):
+    errors = []
+
+    for i, row in df.iterrows():
+
+        # Tanggal wajib diisi
+        if row["Tanggal"] in ["", None]:
+            errors.append(f"Baris {i+1}: Tanggal harus diisi.")
+
+        # Debit/Kredit harus >= 0
+        try:
+            if float(row["Debit"]) < 0:
+                errors.append(f"Baris {i+1}: Debit tidak boleh negatif.")
+            if float(row["Kredit"]) < 0:
+                errors.append(f"Baris {i+1}: Kredit tidak boleh negatif.")
+        except:
+            errors.append(f"Baris {i+1}: Debit/Kredit harus angka.")
+
+        # Debit dan Kredit tidak boleh dua-duanya terisi
+        if float(row["Debit"]) > 0 and float(row["Kredit"]) > 0:
+            errors.append(f"Baris {i+1}: Debit dan Kredit tidak boleh terisi bersamaan.")
+
+    return errors
+
+
+errors = validate(st.session_state.df)
 
 if errors:
-    st.error("⚠️ Validasi Gagal:\n" + "\n".join(errors))
+    st.error("⚠️ Ada kesalahan input:")
+    for e in errors:
+        st.write("- ", e)
 else:
-    # Jika valid, update session state
-    st.session_state.jurnal_df = updated_df
+    st.success("✔️ Semua data valid!")
 
 
-# --------------------------------------------------------
-# HITUNG TOTAL jika valid
-# --------------------------------------------------------
-if not errors and not updated_df.empty:
-    total_debit = updated_df["Debit (Rp)"].sum()
-    total_kredit = updated_df["Kredit (Rp)"].sum()
-
-    st.markdown("### **Total Akhir**")
-    col1, col2 = st.columns(2)
-    col1.metric("Total Debit", f"Rp {total_debit:,.0f}")
-    col2.metric("Total Kredit", f"Rp {total_kredit:,.0f}")
-else:
-    st.info("Masukkan data dan pastikan validasi terpenuhi.")
+# ======================================
+# 7. HASIL AKHIR
+# ======================================
+st.write("### 📄 Data Jurnal Umum Saat Ini:")
+st.dataframe(st.session_state.df)
