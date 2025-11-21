@@ -139,45 +139,54 @@ def create_aggrid(df, key_suffix, height=400):
         st.error(f"AgGrid error: {e}")
         return df
 
-# === Fungsi buat buku besar ===
 def buat_buku_besar():
-    # Inisialisasi struktur buku besar berdasarkan referensi akun
     buku_besar = {}
-    
-    # Proses setiap entri jurnal
+
     for _, row in st.session_state.data.iterrows():
-        if not row["Akun"] or not str(row["Akun"]).strip():
+        akun = str(row.get("Akun", "")).strip()
+        if not akun:
             continue
-            
-        akun = str(row["Akun"]).strip()
-        
-        # Buat entri baru jika akun belum ada
+
+        # convert debit/kredit ke float, fallback 0
+        debit = 0
+        kredit = 0
+        try:
+            debit = float(row.get("Debit (Rp)", 0) or 0)
+        except:
+            debit = 0
+        try:
+            kredit = float(row.get("Kredit (Rp)", 0) or 0)
+        except:
+            kredit = 0
+
         if akun not in buku_besar:
-            buku_besar[akun] = {
-                "nama_akun": f"Akun {akun}",
-                "debit": 0,
-                "kredit": 0,
-                "transaksi": []
-            }
-        
-        # Tambahkan transaksi
-        if row["Debit (Rp)"] > 0:
+            buku_besar[akun] = {"nama_akun": f"Akun {akun}", "debit": 0, "kredit": 0, "transaksi": []}
+
+        if debit > 0:
             buku_besar[akun]["transaksi"].append({
-                "tanggal": row["Tanggal"],
-                "keterangan": row["Keterangan"],
-                "debit": row["Debit (Rp)"],
+                "tanggal": row.get("Tanggal", ""),
+                "keterangan": row.get("Keterangan", ""),
+                "debit": debit,
                 "kredit": 0
             })
-            buku_besar[akun]["debit"] += row["Debit (Rp)"]
-        
-        if row["Kredit (Rp)"] > 0:
+            buku_besar[akun]["debit"] += debit
+
+        if kredit > 0:
             buku_besar[akun]["transaksi"].append({
-                "tanggal": row["Tanggal"],
-                "keterangan": row["Keterangan"],
+                "tanggal": row.get("Tanggal", ""),
+                "keterangan": row.get("Keterangan", ""),
                 "debit": 0,
-                "kredit": row["Kredit (Rp)"]
+                "kredit": kredit
             })
-            buku_besar[akun]["kredit"] += row["Kredit (Rp)"]
+            buku_besar[akun]["kredit"] += kredit
+
+    # update nama akun dari neraca saldo
+    for _, row in st.session_state.neraca_saldo.iterrows():
+        akun_no = str(row.get("No Akun", "")).strip()
+        if akun_no in buku_besar:
+            buku_besar[akun_no]["nama_akun"] = row.get("Nama Akun", buku_besar[akun_no]["nama_akun"])
+
+    return buku_besar
 
 
 # === Styling ===
