@@ -96,7 +96,11 @@ def create_aggrid(df, key_suffix, height=400):
 # === Fungsi untuk membuat buku besar ===
 def buat_buku_besar():
     df = st.session_state.data.copy()
-    
+
+    # Pastikan kolom Ref ada (aman untuk sesi lama)
+    if "Ref" not in df.columns:
+        df["Ref"] = ""
+
     # Pastikan kolom numeric adalah float
     for col in ["Debit (Rp)", "Kredit (Rp)"]:
         df[col] = pd.to_numeric(df[col], errors="coerce").fillna(0.0)
@@ -106,20 +110,46 @@ def buat_buku_besar():
         akun = str(row.get("Akun", "")).strip()
         if not akun:
             continue
-        
+
+        # Inisialisasi akun beserta kumpulan ref
         if akun not in buku_besar:
-            buku_besar[akun] = {"nama_akun": f"Akun {akun}", "debit": 0.0, "kredit": 0.0, "transaksi": []}
-        
+            buku_besar[akun] = {
+                "nama_akun": f"Akun {akun}",
+                "debit": 0.0,
+                "kredit": 0.0,
+                "transaksi": [],
+                "refs": set(),  # kumpulkan ref per akun
+            }
+
         debit_val = float(row.get("Debit (Rp)", 0) or 0)
         kredit_val = float(row.get("Kredit (Rp)", 0) or 0)
         tanggal = "" if pd.isna(row.get("Tanggal", "")) else str(row.get("Tanggal", ""))
         keterangan = str(row.get("Keterangan", "")).strip()
-        
+        ref_val = str(row.get("Ref", "")).strip()
+
+        # Simpan ref jika ada
+        if ref_val:
+            buku_besar[akun]["refs"].add(ref_val)
+
+        # Catat transaksi dengan ref
         if debit_val > 0:
-            buku_besar[akun]["transaksi"].append({"tanggal": tanggal, "keterangan": keterangan, "debit": debit_val, "kredit": 0.0})
+            buku_besar[akun]["transaksi"].append({
+                "tanggal": tanggal,
+                "ref": ref_val,
+                "keterangan": keterangan,
+                "debit": debit_val,
+                "kredit": 0.0
+            })
             buku_besar[akun]["debit"] += debit_val
+
         if kredit_val > 0:
-            buku_besar[akun]["transaksi"].append({"tanggal": tanggal, "keterangan": keterangan, "debit": 0.0, "kredit": kredit_val})
+            buku_besar[akun]["transaksi"].append({
+                "tanggal": tanggal,
+                "ref": ref_val,
+                "keterangan": keterangan,
+                "debit": 0.0,
+                "kredit": kredit_val
+            })
             buku_besar[akun]["kredit"] += kredit_val
     
     # Update nama akun dari neraca saldo
@@ -315,16 +345,18 @@ with tab2:
         st.info("ℹ️ Belum ada data untuk buku besar. Silakan isi Jurnal Umum terlebih dahulu.")
     
     else:
-        # Buat pilihan berdasarkan nama akun asli
-        akun_labels = {k: v["nama_akun"] for k, v in st.session_state.buku_besar.items()}
-        
-        # Selectbox menampilkan hanya nama akun
+        # Buat pilihan label: "Ref(s) - Nama Akun" jika ada ref, else hanya nama akun
+        akun_labels = {}
+        for k, v in st.session_state.buku_besar.items():
+            refs = sorted([r for r in v.get("refs", set()) if r])  # hanya non-kosong
+            ref_label = ", ".join(refs)
+            label = f"{ref_label} - {v['nama_akun']}" if ref_label else v["nama_akun"]
+            akun_labels[k] = label
+        # Selectbox menampilkan label "ref-akun"
         selected_label = st.selectbox("Pilih Akun:", akun_labels.values())
-        
         # Cari key berdasarkan label
         akun_no = [k for k, v in akun_labels.items() if v == selected_label][0]
         akun_data = st.session_state.buku_besar[akun_no]
-
 
         col1, col2, col3 = st.columns(3)
         with col1:
@@ -335,7 +367,7 @@ with tab2:
         # Tabel transaksi
         if akun_data["transaksi"]:
             df_transaksi = pd.DataFrame(akun_data["transaksi"])
-            st.write(f"### Transaksi Akun: {akun_data['nama_akun']}")
+            st.write(f"### Transaksi Akun: {akun_labels[akun_no]}")
 
             df_transaksi_display = df_transaksi.copy()
             df_transaksi_display.index = range(1, len(df_transaksi_display) + 1)
