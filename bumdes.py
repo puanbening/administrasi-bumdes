@@ -644,6 +644,11 @@ with tab3:
     
     # Auto-sync 
     sync_neraca_from_bb(bb_periode, non_destructive=True)
+
+    # Cek kalau Buku Besar periode ini kosong
+    if bb_periode is None or len(bb_periode) == 0:
+        st.info("ℹ️ Belum ada data untuk neraca saldo. Silakan isi Jurnal Umum terlebih dahulu.")
+        st.stop()   # ← hentikan eksekusi tab agar tidak lanjut ke bawah
     
     # Tombol kontrol
     col1, col2, col3 = st.columns(3)
