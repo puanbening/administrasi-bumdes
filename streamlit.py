@@ -299,71 +299,65 @@ with tab1:
 with tab2:
     st.header("📚 Buku Besar")
     
-    # Perbarui buku besar dengan data terbaru
+    # Perbarui buku besar berdasarkan jurnal
     st.session_state.buku_besar = buat_buku_besar()
     
     if not st.session_state.buku_besar:
-        st.info("ℹ️ Belum ada data untuk buku besar. Silakan tambah data di Jurnal Umum dan isi kolom 'Akun'.")
+        st.info("ℹ️ Belum ada data untuk buku besar. Silakan isi Jurnal Umum terlebih dahulu.")
+    
     else:
-        # Pilihan akun (hanya nama akun, tanpa nomor akun)
-        akun_options = [v["nama_akun"] for v in st.session_state.buku_besar.values()]
-        selected_akun = st.selectbox("Pilih Akun:", akun_options)
-
-        # Cari key akun berdasarkan nama akun
-        akun_no = None
-        for key, value in st.session_state.buku_besar.items():
-            if value["nama_akun"] == selected_akun:
-                akun_no = key
-                break
+        # Buat pilihan berdasarkan nama akun asli
+        akun_labels = {k: v["nama_akun"] for k, v in st.session_state.buku_besar.items()}
         
+        # Selectbox menampilkan hanya nama akun
+        selected_label = st.selectbox("Pilih Akun:", akun_labels.values())
+        
+        # Cari key berdasarkan label
+        akun_no = [k for k, v in akun_labels.items() if v == selected_label][0]
         akun_data = st.session_state.buku_besar[akun_no]
-        
+
         # Hitung saldo
         saldo = akun_data["debit"] - akun_data["kredit"]
+
         col1, col2, col3 = st.columns(3)
         with col1:
             st.metric("Total Debit", format_rupiah(akun_data["debit"]))
         with col2:
             st.metric("Total Kredit", format_rupiah(akun_data["kredit"]))
         with col3:
-            st.metric("Saldo Akhir", format_rupiah(saldo), 
-                      delta_color="inverse" if saldo < 0 else "normal")
-        
+            st.metric("Saldo Akhir", format_rupiah(saldo))
+
         # Tabel transaksi
         if akun_data["transaksi"]:
             df_transaksi = pd.DataFrame(akun_data["transaksi"])
-            st.write(f"### Transaksi Akun {akun_data['nama_akun']}")
-            
-            # Nomor urut
+            st.write(f"### Transaksi Akun: {akun_data['nama_akun']}")
+
             df_transaksi_display = df_transaksi.copy()
             df_transaksi_display.index = range(1, len(df_transaksi_display) + 1)
             df_transaksi_display.index.name = "No"
-            
+
             st.dataframe(df_transaksi_display.style.format({
                 "debit": format_rupiah,
                 "kredit": format_rupiah
             }))
-            
-            # PDF Buku Besar
-            def buat_pdf_buku_besar(akun_data):
+
+            # === PDF Buku Besar ===
+            def buat_pdf_buku_besar(akun_no, akun_data):
                 pdf = FPDF()
                 pdf.add_page()
-                
-                # Judul
                 pdf.set_font("Arial", 'B', 14)
-                pdf.cell(0, 10, txt=f"Buku Besar - {akun_data['nama_akun']}", ln=True, align="C")
-                
+                pdf.cell(0, 10, txt=f"Buku Besar", ln=True, align="C")
                 pdf.set_font("Arial", '', 12)
+                pdf.cell(0, 8, txt=f"Akun: {akun_data['nama_akun']}", ln=True, align="C")
                 pdf.ln(5)
-                
-                # Info saldo
+
                 pdf.set_font("Arial", '', 10)
-                pdf.cell(0, 8, txt=f"Total Debit: {format_rupiah(akun_data['debit'])}", ln=True)
-                pdf.cell(0, 8, txt=f"Total Kredit: {format_rupiah(akun_data['kredit'])}", ln=True)
+                pdf.cell(0, 8, txt=f"Total Debit  : {format_rupiah(akun_data['debit'])}", ln=True)
+                pdf.cell(0, 8, txt=f"Total Kredit : {format_rupiah(akun_data['kredit'])}", ln=True)
                 saldo = akun_data["debit"] - akun_data["kredit"]
-                pdf.cell(0, 8, txt=f"Saldo Akhir: {format_rupiah(saldo)}", ln=True)
+                pdf.cell(0, 8, txt=f"Saldo Akhir  : {format_rupiah(saldo)}", ln=True)
                 pdf.ln(5)
-                
+
                 # Header tabel
                 pdf.set_font("Arial", 'B', 10)
                 col_widths = [25, 60, 50, 50]
@@ -371,32 +365,31 @@ with tab2:
                 for i, header in enumerate(headers):
                     pdf.cell(col_widths[i], 10, header, border=1, align="C")
                 pdf.ln()
-                
+
                 # Isi tabel
                 pdf.set_font("Arial", '', 9)
                 for trx in akun_data["transaksi"]:
                     pdf.cell(col_widths[0], 8, str(trx["tanggal"]), border=1, align="C")
-                    
+
                     ket = str(trx["keterangan"])
                     if len(ket) > 30:
                         ket = ket[:27] + "..."
-                    pdf.cell(col_widths[1], 8, ket, border=1)
-                    
+                    pdf.cell(col_widths[1], 8, ket, border=1, align="L")
+
                     pdf.cell(col_widths[2], 8, format_rupiah(trx["debit"]), border=1, align="R")
                     pdf.cell(col_widths[3], 8, format_rupiah(trx["kredit"]), border=1, align="R")
                     pdf.ln()
-                
+
                 pdf.ln(5)
                 pdf.set_font("Arial", 'I', 8)
                 pdf.cell(0, 5, txt="Dicetak dari Sistem Akuntansi BUMDes", ln=True, align="C")
-                
+
                 with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp:
                     pdf.output(tmp.name)
                     tmp.seek(0)
                     return tmp.read()
 
-            pdf_buku_besar = buat_pdf_buku_besar(akun_data)
-            
+            pdf_buku_besar = buat_pdf_buku_besar(akun_no, akun_data)
             st.download_button(
                 "📥 Download PDF Buku Besar",
                 data=pdf_buku_besar,
@@ -404,9 +397,9 @@ with tab2:
                 mime="application/pdf",
                 use_container_width=True
             )
-        
         else:
             st.info("Tidak ada transaksi untuk akun ini.")
+
 
 # ========================================
 # TAB 3: NERACA SALDO (OPTIMIZED FOR STREAMLIT CLOUD)
