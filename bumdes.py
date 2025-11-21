@@ -175,22 +175,54 @@ with tab1:
     with col2:
         tahun_selected = st.number_input("Tahun", min_value=2000, max_value=2100, value=pd.Timestamp.now().year, step=1)
     
-    # Tombol tambah baris
-    if st.button("➕ Tambah Baris Jurnal", key="tambah_jurnal"):
-        new_row = pd.DataFrame([{"Tanggal": "", "Keterangan": "", "Akun": "", "Debit (Rp)": 0, "Kredit (Rp)": 0}])
+    # Fungsi untuk menambah baris
+    def add_journal_row():
+        new_row = pd.DataFrame({
+            "Tanggal": [""], 
+            "Keterangan": [""], 
+            "Akun": [""], 
+            "Debit (Rp)": [0], 
+            "Kredit (Rp)": [0]
+        })
+        # Simpan data yang ada dulu dari AgGrid
+        if 'grid_response' in st.session_state:
+            st.session_state.data = st.session_state.grid_response['data']
+        # Tambah baris baru
         st.session_state.data = pd.concat([st.session_state.data, new_row], ignore_index=True)
-        st.rerun()
-
-     # AgGrid
-    updated_data = create_aggrid(st.session_state.data, key_suffix="jurnal", height=320)
     
-    # Update session state dengan data yang telah diubah
-    st.session_state.data = updated_data
+    # Tombol tambah baris
+    if st.button("➕ Tambah Baris Jurnal", key="tambah_jurnal", on_click=add_journal_row):
+        pass
     
-    # AgGrid
-    # st.session_state.data = create_aggrid(st.session_state.data, key_suffix="jurnal", height=320)
+    # Setup AgGrid
+    gb = GridOptionsBuilder.from_dataframe(st.session_state.data)
+    gb.configure_default_column(editable=True, resizable=True)
+    gb.configure_grid_options(stopEditingWhenCellsLoseFocus=False)
     
-    # Filter baris valid
+    for col in st.session_state.data.columns:
+        if "(Rp)" in col:
+            gb.configure_column(col, type=["numericColumn"], valueFormatter="value ? value.toLocaleString() : ''")
+    
+    grid_options = gb.build()
+    
+    # Render AgGrid
+    grid_response = AgGrid(
+        st.session_state.data,
+        gridOptions=grid_options,
+        update_mode=GridUpdateMode.VALUE_CHANGED,
+        fit_columns_on_grid_load=True,
+        allow_unsafe_jscode=True,
+        enable_enterprise_modules=False,
+        theme="streamlit",
+        height=320,
+        key="jurnal_grid",
+        reload_data=True
+    )
+    
+    # Simpan data dari grid ke session state
+    st.session_state.data = grid_response['data']
+    
+    # Tampilkan data yang sudah difilter
     df_clean = st.session_state.data[st.session_state.data["Keterangan"].astype(str).str.strip() != ""]
     
     if not df_clean.empty:
