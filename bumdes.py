@@ -323,16 +323,12 @@ with tab2:
         akun_no = [k for k, v in akun_labels.items() if v == selected_label][0]
         akun_data = st.session_state.buku_besar[akun_no]
 
-        # Hitung saldo
-        saldo = akun_data["debit"] - akun_data["kredit"]
 
         col1, col2, col3 = st.columns(3)
         with col1:
             st.metric("Total Debit", format_rupiah(akun_data["debit"]))
         with col2:
             st.metric("Total Kredit", format_rupiah(akun_data["kredit"]))
-        with col3:
-            st.metric("Saldo Akhir", format_rupiah(saldo))
 
         # Tabel transaksi
         if akun_data["transaksi"]:
@@ -361,8 +357,6 @@ with tab2:
                 pdf.set_font("Arial", '', 10)
                 pdf.cell(0, 8, txt=f"Total Debit  : {format_rupiah(akun_data['debit'])}", ln=True)
                 pdf.cell(0, 8, txt=f"Total Kredit : {format_rupiah(akun_data['kredit'])}", ln=True)
-                saldo = akun_data["debit"] - akun_data["kredit"]
-                pdf.cell(0, 8, txt=f"Saldo Akhir  : {format_rupiah(saldo)}", ln=True)
                 pdf.ln(5)
 
                 # Header tabel
