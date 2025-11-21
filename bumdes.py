@@ -883,8 +883,8 @@ with tab4:
     st.header("📊 Laporan Keuangan BUMDes")
     
     # Ambil periode dari Tab 
-    bulan_neraca = st.session_state.get('bulan')
-    tahun_neraca = st.session_state.get('tahun')
+    bulan_laporan = st.session_state.get('bulan')
+    tahun_laporan = st.session_state.get('tahun')
 
     if not bulan_neraca or not tahun_neraca:
         st.warning("Periode belum dipilih di Tab 1.")
@@ -895,12 +895,12 @@ with tab4:
             "07": "Juli",    "08": "Agustus",  "09": "September",
             "10": "Oktober", "11": "November", "12": "Desember"
         }
-        st.subheader(f"Periode: {bulan_dict[bulan_neraca]} {tahun_neraca}")
+        st.subheader(f"Periode: {bulan_dict[bulan_laporan]} {tahun_laporan}")
 
         # Ambil buku besar TERFILTER periode
-        bb_periode = buat_buku_besar_periode(bulan_neraca, tahun_neraca)
+        bb_periode = buat_buku_besar_periode(bulan_laporan, tahun_laporan)
 
-        # Jika Buku Besar kosong → tampilkan info dan jangan lanjut
+    # Jika Buku Besar kosong → tampilkan info dan jangan lanjut
     if not st.session_state.buku_besar:
         st.info("ℹ️ Belum ada data untuk Laporan Keuangan pada periode ini. Silakan isi Jurnal Umum terlebih dahulu.")
 
