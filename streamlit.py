@@ -314,43 +314,6 @@ with tab1:
 with tab2:
     st.header("📚 Buku Besar")
     
-    if not st.session_state.buku_besar:
-        st.info("📝 Belum ada data buku besar. Silakan input data jurnal terlebih dahulu.")
-    else:
-        # Pilih akun untuk dilihat buku besarnya
-        akun_list = list(st.session_state.buku_besar.keys())
-        selected_akun = st.selectbox("Pilih Akun:", akun_list)
-        
-        if selected_akun:
-            akun_data = st.session_state.buku_besar[selected_akun]
-            
-            st.subheader(f"Buku Besar: {akun_data['nama_akun']} ({selected_akun})")
-            
-            # Tampilkan ringkasan
-            col1, col2, col3 = st.columns(3)
-            with col1:
-                st.metric("Total Debit", format_rupiah(akun_data['debit']))
-            with col2:
-                st.metric("Total Kredit", format_rupiah(akun_data['kredit']))
-            with col3:
-                st.metric("Saldo Akhir", format_rupiah(akun_data['saldo']))
-            
-            # Tampilkan transaksi
-            if akun_data['transaksi']:
-                transaksi_df = pd.DataFrame(akun_data['transaksi'])
-                st.dataframe(transaksi_df.style.format({
-                    "debit": format_rupiah,
-                    "kredit": format_rupiah
-                }))
-            else:
-                st.info("Tidak ada transaksi untuk akun ini.")
-
-# ========================================
-# TAB 2: BUKU BESAR
-# ========================================
-with tab2:
-    st.header("📚 Buku Besar")
-    
     # Perbarui buku besar dengan data terbaru
     st.session_state.buku_besar = buat_buku_besar()
     
