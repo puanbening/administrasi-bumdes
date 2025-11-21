@@ -11,7 +11,7 @@ st.title("📘 Sistem Akuntansi BUMDes")
 # === Inisialisasi data awal ===
 if "data" not in st.session_state:
     st.session_state.data = pd.DataFrame([
-        {"Tanggal": None, "Keterangan": "", "Akun": "", "Debit (Rp)": 0, "Kredit (Rp)": 0}
+        {"Tanggal": "", "Keterangan": "", "Akun": "", "Debit (Rp)": 0, "Kredit (Rp)": 0}
     ])
 
 if "neraca_saldo" not in st.session_state:
@@ -78,23 +78,26 @@ def format_rupiah(x):
     except Exception:
         return x
 
-# === Fungsi untuk konversi tanggal ===
-def convert_date(date_obj):
-    """Konversi tanggal dari berbagai format ke string YYYY-MM-DD"""
-    if pd.isna(date_obj) or date_obj is None:
+# Fungsi format tanggal
+def ensure_date(value):
+    if value is None:
         return None
+    if isinstance(value, (pd.Timestamp, datetime)):
+        return value.date() if isinstance(value, datetime) else value.date()
+    if isinstance(value, str):
+        value = value.strip()
+    if value == "":
+        return None
+    for fmt in ("%Y-%m-%d", "%d/%m/%Y", "%m/%d/%Y", "%d-%m-%Y"):
+        try:
+            return datetime.strptime(value, fmt).date()
+        except Exception:
+            continue
     try:
-        if isinstance(date_obj, str):
-            # Coba parsing string ke date
-            return pd.to_datetime(date_obj).strftime('%Y-%m-%d')
-        elif isinstance(date_obj, (datetime, pd.Timestamp)):
-            return date_obj.strftime('%Y-%m-%d')
-        elif hasattr(date_obj, 'to_dateString'):
-            # Jika dari JavaScript Date object
-            return date_obj.to_dateString()
-        return str(date_obj)
-    except:
+        return pd.to_datetime(value, errors="coerce").date()
+    except Exception:
         return None
+    return None
         
 # === Fungsi AgGrid ===
 def create_aggrid(df, key_suffix, height=400):
@@ -208,7 +211,7 @@ with tab1:
 
     # Tombol tambah baris untuk Jurnal Umum
     if st.button("➕ Tambah Baris Jurnal", key="tambah_jurnal"):
-        new_row = pd.DataFrame([{"Tanggal": None, "Keterangan": "", "Akun": "", "Debit (Rp)": 0, "Kredit (Rp)": 0}])
+        new_row = pd.DataFrame([{"Tanggal": "", "Keterangan": "", "Akun": "", "Debit (Rp)": 0, "Kredit (Rp)": 0}])
         st.session_state.data = pd.concat([st.session_state.data, new_row], ignore_index=True)
         st.rerun()
 
@@ -221,12 +224,19 @@ with tab1:
         "Tanggal",
         header_name="Tanggal",
         editable=True,
-        cellEditor="agDateStringCellEditor",
+        cellEditor="agDateCellEditor",
         cellEditorParams={
-            "useFormatter": True
+            "useFormatter": False
         },
         valueFormatter="value ? new Date(value).toLocaleDateString('en-CA') : ''",
-        valueParser="function(params) { return params.newValue; }"
+        valueParser="""
+            function(params){
+                if (!params.newValue) return null;
+                const d = new Date(params.newValue);
+                if (isNaN(d)) return null;
+                return d.toISOString().split('T')[0];
+            }
+        """
     )
     gb.configure_column("Keterangan", header_name="Keterangan")
     gb.configure_column("Akun", header_name="Akun (contoh: Perlengkapan)")
@@ -250,7 +260,10 @@ with tab1:
 
     new_df = pd.DataFrame(grid_response["data"])
     if "Tanggal" in new_df.columns:
-        new_df["Tanggal"] = new_df["Tanggal"].apply(convert_date)
+        new_df["Tanggal"] = new_df["Tanggal"].apply(
+            lambda x: x[:10] if isinstance(x, str) and len(x) >= 10 else x
+    )
+
 
     if not new_df.equals(st.session_state.data):
         st.session_state.data = new_df.copy()
