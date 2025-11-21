@@ -235,9 +235,8 @@ with tab1:
     df_clean = new_df[new_df["Keterangan"].astype(str).str.strip() != ""]
 
     if not df_clean.empty:
-        # Validasi keseimbangan
-        seimbang, total_debit, total_kredit = validasi_jurnal(df_clean)
-        
+        total_debit = df_clean["Debit (Rp)"].sum()
+        total_kredit = df_clean["Kredit (Rp)"].sum()
         total_row = pd.DataFrame({
             "Tanggal": [""],
             "Keterangan": ["TOTAL"],
@@ -251,20 +250,12 @@ with tab1:
         df_final_display = df_final.copy()
         df_final_display.index = range(1, len(df_final_display) + 1)
         df_final_display.index.name = "No"
-        
-        # Tampilkan status keseimbangan
-        if seimbang:
-            st.success("✅ Debit dan Kredit seimbang!")
-        else:
-            st.error(f"❌ Debit dan Kredit tidak seimbang! Selisih: {format_rupiah(abs(total_debit - total_kredit))}")
+    
         
         st.dataframe(df_final_display.style.format({
             "Debit (Rp)": format_rupiah,
             "Kredit (Rp)": format_rupiah
         }))
-
-        # Proses ke buku besar
-        st.session_state.buku_besar = proses_ke_buku_besar(df_clean)
         
         def buat_pdf(df):
             pdf = FPDF()
@@ -273,23 +264,15 @@ with tab1:
             pdf.cell(200, 10, txt="Jurnal Umum BUMDes", ln=True, align="C")
             pdf.ln(8)
 
-            # Header
-            col_widths = [30, 70, 40, 25, 25]  # Sesuaikan lebar kolom
-            headers = ["Tanggal", "Keterangan", "Akun", "Debit", "Kredit"]
-            
-            pdf.set_font("Arial", "B", 10)
-            for i, header in enumerate(headers):
-                pdf.cell(col_widths[i], 10, header, border=1, align="C")
+            col_width = 190 / len(df.columns)
+            for col in df.columns:
+                pdf.cell(col_width, 10, col, border=1, align="C")
             pdf.ln()
-            
-            # Data
-            pdf.set_font("Arial", "", 9)
+
+            pdf.set_font("Arial", size=10)
             for _, row in df.iterrows():
-                pdf.cell(col_widths[0], 8, str(row["Tanggal"]), border=1)
-                pdf.cell(col_widths[1], 8, str(row["Keterangan"]), border=1)
-                pdf.cell(col_widths[2], 8, str(row["Akun"]), border=1)
-                pdf.cell(col_widths[3], 8, format_rupiah(row["Debit (Rp)"]), border=1, align="R")
-                pdf.cell(col_widths[4], 8, format_rupiah(row["Kredit (Rp)"]), border=1, align="R")
+                for item in row:
+                    pdf.cell(col_width, 8, str(item), border=1, align="C")
                 pdf.ln()
 
             with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp:
@@ -307,7 +290,6 @@ with tab1:
         )
     else:
         st.warning("Belum ada data valid di tabel.")
-
 # ========================================
 # TAB 2: BUKU BESAR
 # ========================================
