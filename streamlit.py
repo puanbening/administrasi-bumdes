@@ -195,11 +195,6 @@ with tab1:
     st.header("🧾 Jurnal Umum")
     st.info("💡 Tekan Enter sekali untuk menyimpan perubahan otomatis.")
 
-    # Tombol tambah baris untuk Jurnal Umum
-    #if st.button("➕ Tambah Baris Jurnal", key="tambah_jurnal"):
-        #new_row = pd.DataFrame([{"Tanggal": "", "Keterangan": "", "Akun": "", "Debit (Rp)": 0, "Kredit (Rp)": 0}])
-        #st.session_state.data = pd.concat([st.session_state.data, new_row], ignore_index=True)
-        #st.rerun()
     # Tombol tambah baris
     if st.button("➕ Tambah Baris Jurnal"):
         new_row = pd.DataFrame([{
@@ -240,20 +235,25 @@ with tab1:
         key="aggrid_jurnal",
         reload_data=False
     )
-    
-    # Update session_state dari AgGrid
+
+    # Ambil data dari AgGrid
     new_df = pd.DataFrame(grid_response["data"])
+
+    # Pastikan kolom Tanggal selalu string
     if "Tanggal" in new_df.columns:
         new_df["Tanggal"] = new_df["Tanggal"].astype(str).str.strip()
-        new_df["Tanggal"] = new_df["Tanggal"].apply(parse_date_safe)
-        new_df["Tanggal"] = new_df["Tanggal"].apply(lambda x: x.isoformat() if x else "")
+        new_df["Tanggal"] = new_df["Tanggal"].apply(lambda x: pd.to_datetime(x, errors='coerce'))
+        new_df["Tanggal"] = new_df["Tanggal"].apply(lambda x: x.strftime("%Y-%m-%d") if pd.notnull(x) else "")
+
+    # Simpan ke session_state
     st.session_state.data = new_df.copy()
     st.session_state.aggrid_jurnal = new_df.copy()
-    
-    # Hitung total dan tampilkan
+
+    # Filter baris yang valid
     df_clean = st.session_state.data[st.session_state.data["Keterangan"].astype(str).str.strip() != ""]
-    
+
     if not df_clean.empty:
+        # Hitung total
         total_debit = df_clean["Debit (Rp)"].sum()
         total_kredit = df_clean["Kredit (Rp)"].sum()
         total_row = pd.DataFrame({
@@ -264,17 +264,17 @@ with tab1:
             "Kredit (Rp)": [total_kredit],
         })
         df_final = pd.concat([df_clean, total_row], ignore_index=True)
-    
+
         st.write("### 📊 Hasil Jurnal")
         df_final_display = df_final.copy()
         df_final_display.index = range(1, len(df_final_display) + 1)
         df_final_display.index.name = "No"
-    
+
         st.dataframe(df_final_display.style.format({
             "Debit (Rp)": format_rupiah,
             "Kredit (Rp)": format_rupiah
         }))
-    
+
         # PDF
         pdf_data = buat_pdf(df_final)
         st.download_button(
