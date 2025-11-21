@@ -2,5 +2,5 @@ streamlit
 streamlit-option-menu
 streamlit-aggrid
 pandas
-fpdf2
+fpdf
 reportlab
