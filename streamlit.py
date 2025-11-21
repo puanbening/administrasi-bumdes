@@ -297,27 +297,46 @@ with tab1:
             "Debit (Rp)": format_rupiah,
             "Kredit (Rp)": format_rupiah
         }))
-        
+
         def buat_pdf(df, bulan, tahun):
             import calendar
             pdf = FPDF()
             pdf.add_page()
             pdf.set_font("Arial", size=12)
             
-            # Judul PDF dengan bulan & tahun
-            bulan_nama = calendar.month_name[int(bulan)]
+            # Konversi angka bulan ke nama bulan Indonesia
+            bulan_dict = {
+                1: "Januari",
+                2: "Februari",
+                3: "Maret",
+                4: "April",
+                5: "Mei",
+                6: "Juni",
+                7: "Juli",
+                8: "Agustus",
+                9: "September",
+                10: "Oktober",
+                11: "November",
+                12: "Desember"
+            }
+            
+            bulan_nama = bulan_dict.get(int(bulan), calendar.month_name[int(bulan)])
             pdf.cell(200, 10, txt=f"Jurnal Umum BUMDes - {bulan_nama} {tahun}", ln=True, align="C")
             pdf.ln(8)
         
             col_width = 190 / len(df.columns)
             # Header tabel
+            pdf.set_font("Arial", size=10, style="B")  # Bold untuk header
             for col in df.columns:
                 pdf.cell(col_width, 10, col, border=1, align="C")
             pdf.ln()
         
-            pdf.set_font("Arial", size=10)
+            pdf.set_font("Arial", size=9)  # Ukuran font lebih kecil untuk konten
             for _, row in df.iterrows():
                 for item in row:
+                    # Format angka jika nilai numerik
+                    if isinstance(item, (int, float)):
+                        item = f"{item:,.0f}".replace(",", ".")
                     pdf.cell(col_width, 8, str(item), border=1, align="C")
                 pdf.ln()
         
@@ -325,6 +344,8 @@ with tab1:
                 pdf.output(tmp.name)
                 tmp.seek(0)
                 return tmp.read()
+        
+        # Pastikan bulan_selected adalah angka (bukan nama bulan)
         pdf_data = buat_pdf(df_final, bulan_selected, tahun_selected)
         st.download_button(
             "📥 Download PDF",
@@ -335,7 +356,6 @@ with tab1:
         )
     else:
         st.warning("Belum ada data valid di tabel.")
-
         
 # ========================================
 # TAB 2: BUKU BESAR
