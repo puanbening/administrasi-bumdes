@@ -882,42 +882,23 @@ with tab3:
 with tab4:
     st.header("📊 Laporan Keuangan BUMDes")
     
-    # --- Selector Periode ---
-    col1, col2 = st.columns(2)
-    
-    bulan_dict = {
-        "01": "Januari", "02": "Februari", "03": "Maret",
-        "04": "April", "05": "Mei", "06": "Juni",
-        "07": "Juli", "08": "Agustus", "09": "September",
-        "10": "Oktober", "11": "November", "12": "Desember"
-    }
-    
-    with col1:
-        bulan_laporan = st.selectbox(
-            "Pilih Bulan", 
-            options=[
-                ("01", "Januari"), ("02", "Februari"), ("03", "Maret"),
-                ("04", "April"), ("05", "Mei"), ("06", "Juni"),
-                ("07", "Juli"), ("08", "Agustus"), ("09", "September"),
-                ("10", "Oktober"), ("11", "November"), ("12", "Desember")
-            ],
-            format_func=lambda x: x[1],
-            key="bulan_laporan"
-        )[0]
-    
-    with col2:
-        tahun_laporan = st.number_input(
-            "Tahun", 
-            min_value=2000, 
-            max_value=2100, 
-            value=2025,
-            step=1,
-            key="tahun_laporan"
-        )
-    
-    st.subheader(f"Periode: {bulan_dict[bulan_laporan]} {tahun_laporan}")
-    
-    #st.info("💡 Data otomatis diambil dari Neraca Saldo, namun Anda tetap bisa mengedit manual di tabel yang tersedia.")
+    # Ambil periode dari Tab 1
+    bulan_laporan = st.session_state.get('bulan')
+    tahun_laporan = st.session_state.get('tahun')
+
+    if not bulan_laporan or not tahun_laporan:
+        st.warning("Periode belum dipilih di Tab 1.")
+    else:
+        bulan_dict = {
+            "01": "Januari", "02": "Februari", "03": "Maret",
+            "04": "April",   "05": "Mei",      "06": "Juni",
+            "07": "Juli",    "08": "Agustus",  "09": "September",
+            "10": "Oktober", "11": "November", "12": "Desember"
+        }
+        st.subheader(f"Periode: {bulan_dict[bulan_laporan]} {tahun_laporan}")
+
+        # Ambil buku besar TERFILTER periode
+        bb_periode = buat_buku_besar_periode(bulan_laporan, tahun_laporan)
 
     # Counter refresh
     if "laporan_refresh" not in st.session_state:
@@ -932,6 +913,7 @@ with tab4:
     # ========================================
     if "pendapatan_loaded" not in st.session_state:
         st.session_state.pendapatan_loaded = False
+        st.info("ℹ️ Belum ada data untuk Neraca Saldo pada periode ini. Silakan isi Jurnal Umum terlebih dahulu.")
     
     if not st.session_state.pendapatan_loaded:
         df_neraca = st.session_state.neraca_saldo[
