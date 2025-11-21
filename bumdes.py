@@ -69,6 +69,9 @@ if "arus_kas_pendanaan" not in st.session_state:
 if "buku_besar" not in st.session_state:
     st.session_state.buku_besar = {}
 
+if "neraca_refresh_counter" not in st.session_state:
+    st.session_state.neraca_refresh_counter = 0
+
 # === Fungsi format rupiah aman ===
 def format_rupiah(x):
     try:
