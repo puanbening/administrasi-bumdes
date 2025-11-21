@@ -257,15 +257,17 @@ with tab1:
 
     new_df = pd.DataFrame(grid_response["data"])
     if "Tanggal" in new_df.columns:
-    # strip dan ubah string kosong menjadi None
-        new_df["Tanggal"] = new_df["Tanggal"].astype(str).str.strip().replace({"": None, "None": None, "nan": None})
+        # ubah semua jadi string dulu, strip whitespace
+        new_df["Tanggal"] = new_df["Tanggal"].astype(str).str.strip()
         
-        # konversi ke datetime.date, NaT → None
-        new_df["Tanggal"] = pd.to_datetime(new_df["Tanggal"], errors="coerce").dt.date
+        # ubah string kosong atau "None"/"nan" menjadi NaN
+        new_df["Tanggal"] = new_df["Tanggal"].replace({"": pd.NA, "None": pd.NA, "nan": pd.NA})
         
-        # optional: supaya st.dataframe tampil cantik, ubah None → ""
-        new_df["Tanggal"] = new_df["Tanggal"].apply(lambda x: x.isoformat() if x else "")
-
+        # konversi ke datetime, invalid jadi NaT
+        new_df["Tanggal"] = pd.to_datetime(new_df["Tanggal"], errors="coerce")
+        
+        # ubah NaT menjadi string kosong agar tampil di st.dataframe
+        new_df["Tanggal"] = new_df["Tanggal"].dt.strftime('%Y-%m-%d').fillna('')
 
     if not new_df.equals(st.session_state.data):
         st.session_state.data = new_df.copy()
