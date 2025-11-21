@@ -221,21 +221,17 @@ with tab1:
     gb.configure_default_column(editable=True, resizable=True)
     gb.configure_grid_options(stopEditingWhenCellsLoseFocus=False)
     gb.configure_column(
-        "Tanggal",
-        header_name="Tanggal",
-        editable=True,
-        cellEditor="agDateCellEditor",
-        cellEditorParams={
-            "useFormatter": False
-        },
-        valueFormatter="value ? new Date(value).toLocaleDateString('en-CA') : ''",
-        valueParser="""
-            function(params){
-                if (!params.newValue) return null;
-                const d = new Date(params.newValue);
-                if (isNaN(d)) return null;
-                return d.toISOString().split('T')[0];
-            }
+    "Tanggal",
+    editable=True,
+    cellEditor="agDateCellEditor",
+    valueFormatter="value ? new Date(value).toLocaleDateString('en-CA') : ''",
+    valueParser="""
+        function(params){
+            if (!params.newValue) return null;
+            const d = new Date(params.newValue);
+            if (isNaN(d)) return null;
+            return d.toISOString().split('T')[0];  // selalu "YYYY-MM-DD"
+        }
         """
     )
     gb.configure_column("Keterangan", header_name="Keterangan")
@@ -260,9 +256,8 @@ with tab1:
 
     new_df = pd.DataFrame(grid_response["data"])
     if "Tanggal" in new_df.columns:
-        new_df["Tanggal"] = new_df["Tanggal"].apply(
-            lambda x: x[:10] if isinstance(x, str) and len(x) >= 10 else x
-    )
+    new_df["Tanggal"] = pd.to_datetime(new_df["Tanggal"], errors="coerce").dt.date
+
 
 
     if not new_df.equals(st.session_state.data):
