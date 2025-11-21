@@ -79,25 +79,11 @@ def format_rupiah(x):
         return x
 
 # Fungsi format tanggal
-def ensure_date(value):
-    if value is None:
-        return None
-    if isinstance(value, (pd.Timestamp, datetime)):
-        return value.date() if isinstance(value, datetime) else value.date()
-    if isinstance(value, str):
-        value = value.strip()
-    if value == "":
-        return None
-    for fmt in ("%Y-%m-%d", "%d/%m/%Y", "%m/%d/%Y", "%d-%m-%Y"):
-        try:
-            return datetime.strptime(value, fmt).date()
-        except Exception:
-            continue
+def parse_date_safe(s):
     try:
-        return pd.to_datetime(value, errors="coerce").date()
-    except Exception:
+        return pd.to_datetime(s, format="%Y-%m-%d", errors="raise").date()
+    except:
         return None
-    return None
         
 # === Fungsi AgGrid ===
 def create_aggrid(df, key_suffix, height=400):
@@ -221,19 +207,11 @@ with tab1:
     gb.configure_default_column(editable=True, resizable=True)
     gb.configure_grid_options(stopEditingWhenCellsLoseFocus=False)
     gb.configure_column(
-    "Tanggal",
-    editable=True,
-    cellEditor="agDateCellEditor",
-    valueFormatter="value ? new Date(value).toLocaleDateString('en-CA') : ''",
-    valueParser="""
-        function(params){
-            if (!params.newValue) return '';
-            // Konversi ke tanggal ISO
-            const d = new Date(params.newValue);
-            if (isNaN(d)) return '';
-            return d.toISOString().split('T')[0]; // "YYYY-MM-DD"
-        }
-    """
+        "Tanggal",
+        editable=True,
+        cellEditor="agTextCellEditor",
+        header_name="Tanggal (YYYY-MM-DD)",
+        cellEditorParams={"placeholder": "YYYY-MM-DD"}
     )
     gb.configure_column("Keterangan", header_name="Keterangan")
     gb.configure_column("Akun", header_name="Akun (contoh: Perlengkapan)")
@@ -257,18 +235,10 @@ with tab1:
 
     new_df = pd.DataFrame(grid_response["data"])
     if "Tanggal" in new_df.columns:
-        # ubah semua jadi string dulu, strip whitespace
         new_df["Tanggal"] = new_df["Tanggal"].astype(str).str.strip()
+        new_df["Tanggal"] = new_df["Tanggal"].apply(parse_date_safe)
+        new_df["Tanggal"] = new_df["Tanggal"].apply(lambda x: x.isoformat() if x else "")
         
-        # ubah string kosong atau "None"/"nan" menjadi NaN
-        new_df["Tanggal"] = new_df["Tanggal"].replace({"": pd.NA, "None": pd.NA, "nan": pd.NA})
-        
-        # konversi ke datetime, invalid jadi NaT
-        new_df["Tanggal"] = pd.to_datetime(new_df["Tanggal"], errors="coerce")
-        
-        # ubah NaT menjadi string kosong agar tampil di st.dataframe
-        new_df["Tanggal"] = new_df["Tanggal"].dt.strftime('%Y-%m-%d').fillna('')
-
     if not new_df.equals(st.session_state.data):
         st.session_state.data = new_df.copy()
 
