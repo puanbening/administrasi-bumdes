@@ -531,7 +531,7 @@ with tab2:
 
     if bb_periode is None or len(bb_periode) == 0:
         st.info("ℹ️ Belum ada data untuk buku besar pada periode ini. Silakan isi Jurnal Umum terlebih dahulu.")
-        st.stop()
+        #st.stop()
     
     else:
         # Buat pilihan berdasarkan nama akun asli
@@ -651,7 +651,7 @@ with tab3:
     # Jika Buku Besar kosong → tampilkan info dan hentikan tab
     if bb_periode is None or len(bb_periode) == 0:
         st.info("ℹ️ Belum ada data untuk Neraca Saldo pada periode ini. Silakan isi Jurnal Umum terlebih dahulu.")
-        st.stop()
+        #st.stop()
     
     else:
         sync_neraca_from_bb(bb_periode, non_destructive=True)
