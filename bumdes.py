@@ -400,6 +400,9 @@ with tab1:
 # ========================================
 # TAB 2: BUKU BESAR
 # ========================================
+# ========================================
+# TAB 2: BUKU BESAR
+# ========================================
 with tab2:
     st.header("📚 Buku Besar")
     
@@ -407,103 +410,102 @@ with tab2:
     st.session_state.buku_besar = buat_buku_besar()
     
     if not st.session_state.buku_besar:
-        st.info("ℹ️ Belum ada data untuk buku besar. Silakan isi Jurnal Umum terlebih dahulu.")
+        st.warning("Belum ada data untuk buku besar. Silakan isi Jurnal Umum terlebih dahulu.")
     
     else:
-        # Buat label: "Akun No - Nama Akun"
+        # Buat label: "Ref - Nama Akun" dari Jurnal Umum
         akun_labels = {k: f"{k} - {v['nama_akun']}" for k, v in st.session_state.buku_besar.items()}
         
         # Selectbox menampilkan nama akun lengkap
         selected_label = st.selectbox("Pilih Akun:", akun_labels.values())
         
-        # Ambil key akun berdasarkan label
+        # Cari key berdasarkan label
         akun_no = [k for k, v in akun_labels.items() if v == selected_label][0]
         akun_data = st.session_state.buku_besar[akun_no]
 
-        col1, col2, col3 = st.columns(3)
+        col1, col2 = st.columns(2)
         with col1:
             st.metric("Total Debit", format_rupiah(akun_data["debit"]))
         with col2:
             st.metric("Total Kredit", format_rupiah(akun_data["kredit"]))
 
-        # Tabel transaksi
+        # Tabel transaksi akun terpilih
         if akun_data["transaksi"]:
             df_transaksi = pd.DataFrame(akun_data["transaksi"])
-            st.write(f"### Transaksi Akun: {akun_no} - {akun_data['nama_akun']}")
-
             df_transaksi_display = df_transaksi.copy()
             df_transaksi_display.index = range(1, len(df_transaksi_display) + 1)
             df_transaksi_display.index.name = "No"
 
+            st.write(f"### Transaksi Akun: {akun_data['nama_akun']}")
             st.dataframe(df_transaksi_display.style.format({
                 "debit": format_rupiah,
                 "kredit": format_rupiah
             }))
 
-            # PDF semua akun
-            def buat_pdf_buku_besar(buku_besar):
-                pdf = FPDF()
-                pdf.add_page()
-                pdf.set_auto_page_break(auto=True, margin=10)
+        # Fungsi buat PDF Buku Besar semua akun
+        def buat_pdf_buku_besar(buku_besar):
+            pdf = FPDF()
+            pdf.set_auto_page_break(auto=True, margin=10)
+            pdf.add_page()
 
-                pdf.set_font("Arial", 'B', 14)
-                pdf.cell(0, 10, txt="Buku Besar Semua Akun", ln=True, align="C")
-                pdf.ln(5)
+            pdf.set_font("Arial", 'B', 14)
+            pdf.cell(0, 10, txt="Buku Besar Semua Akun", ln=True, align="C")
+            pdf.ln(5)
 
-                for akun_no, akun_data in buku_besar.items():
-                    # Judul akun
-                    pdf.set_font("Arial", 'B', 12)
-                    pdf.cell(0, 8, txt=f"{akun_no} - {akun_data['nama_akun']}", ln=True)
-                    
-                    # Total debit/kredit
-                    pdf.set_font("Arial", '', 10)
-                    pdf.cell(0, 6, txt=f"Total Debit  : {format_rupiah(akun_data['debit'])}", ln=True)
-                    pdf.cell(0, 6, txt=f"Total Kredit : {format_rupiah(akun_data['kredit'])}", ln=True)
-                    pdf.ln(2)
+            for ref, data in buku_besar.items():
+                # Judul akun
+                pdf.set_font("Arial", 'B', 12)
+                pdf.cell(0, 8, txt=f"{ref} - {data['nama_akun']}", ln=True)
+                
+                # Total debit/kredit
+                pdf.set_font("Arial", '', 10)
+                pdf.cell(0, 6, txt=f"Total Debit  : {format_rupiah(data['debit'])}", ln=True)
+                pdf.cell(0, 6, txt=f"Total Kredit : {format_rupiah(data['kredit'])}", ln=True)
+                pdf.ln(2)
 
-                    # Header tabel transaksi
-                    pdf.set_font("Arial", 'B', 10)
-                    col_widths = [25, 60, 50, 50]
-                    headers = ["Tanggal", "Keterangan", "Debit (Rp)", "Kredit (Rp)"]
-                    for i, header in enumerate(headers):
-                        pdf.cell(col_widths[i], 8, header, border=1, align="C")
+                # Header tabel transaksi
+                pdf.set_font("Arial", 'B', 10)
+                col_widths = [25, 60, 50, 50]
+                headers = ["Tanggal", "Keterangan", "Debit (Rp)", "Kredit (Rp)"]
+                for i, header in enumerate(headers):
+                    pdf.cell(col_widths[i], 8, header, border=1, align="C")
+                pdf.ln()
+
+                # Isi tabel transaksi
+                pdf.set_font("Arial", '', 9)
+                for trx in data.get("transaksi", []):
+                    pdf.cell(col_widths[0], 8, str(trx["tanggal"]), border=1, align="C")
+
+                    ket = str(trx["keterangan"])
+                    if len(ket) > 30:
+                        ket = ket[:27] + "..."
+                    pdf.cell(col_widths[1], 8, ket, border=1, align="L")
+
+                    pdf.cell(col_widths[2], 8, format_rupiah(trx["debit"]), border=1, align="R")
+                    pdf.cell(col_widths[3], 8, format_rupiah(trx["kredit"]), border=1, align="R")
                     pdf.ln()
 
-                    # Isi tabel transaksi
-                    pdf.set_font("Arial", '', 9)
-                    for trx in akun_data.get("transaksi", []):
-                        pdf.cell(col_widths[0], 8, str(trx["tanggal"]), border=1, align="C")
+                pdf.ln(5)  # jeda antar akun
 
-                        ket = str(trx["keterangan"])
-                        if len(ket) > 30:
-                            ket = ket[:27] + "..."
-                        pdf.cell(col_widths[1], 8, ket, border=1, align="L")
+            # Footer
+            pdf.set_font("Arial", 'I', 8)
+            pdf.cell(0, 5, txt="Dicetak dari Sistem Akuntansi BUMDes", ln=True, align="C")
 
-                        pdf.cell(col_widths[2], 8, format_rupiah(trx["debit"]), border=1, align="R")
-                        pdf.cell(col_widths[3], 8, format_rupiah(trx["kredit"]), border=1, align="R")
-                        pdf.ln()
+            with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp:
+                pdf.output(tmp.name)
+                tmp.seek(0)
+                return tmp.read()
 
-                    pdf.ln(5)  # Jeda antar akun
+        # Tombol download PDF semua akun
+        pdf_semua = buat_pdf_buku_besar(st.session_state.buku_besar)
+        st.download_button(
+            "📥 Download PDF Buku Besar",
+            data=pdf_semua,
+            file_name="buku_besar.pdf",
+            mime="application/pdf",
+            use_container_width=True
+        )
 
-                # Footer
-                pdf.set_font("Arial", 'I', 8)
-                pdf.cell(0, 5, txt="Dicetak dari Sistem Akuntansi BUMDes", ln=True, align="C")
-
-                with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp:
-                    pdf.output(tmp.name)
-                    tmp.seek(0)
-                    return tmp.read()
-
-            pdf_semua = buat_pdf_buku_besar(st.session_state.buku_besar)
-            st.download_button(
-                "📥 Download PDF Buku Besar",
-                data=pdf_semua,
-                file_name="buku_besar.pdf",
-                mime="application/pdf",
-                use_container_width=True
-            )
-        else:
-            st.info("Tidak ada transaksi untuk akun ini.")
 
             
 # ========================================
