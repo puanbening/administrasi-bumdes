@@ -69,9 +69,6 @@ if "arus_kas_pendanaan" not in st.session_state:
 if "buku_besar" not in st.session_state:
     st.session_state.buku_besar = {}
 
-if "neraca_refresh_counter" not in st.session_state:
-    st.session_state.neraca_refresh_counter = 0
-
 # === Fungsi format rupiah aman ===
 def format_rupiah(x):
     try:
@@ -227,107 +224,6 @@ def sync_neraca_from_bukubesar(non_destructive: bool = True):
         ns = ns[ns["Ref"].astype(str).str.strip().isin(refs_bb)]
 
     st.session_state.neraca_saldo = ns.reset_index(drop=True)
-
-from calendar import monthrange
-
-def _parse_tanggal_series(s: pd.Series) -> pd.Series:
-    # Robust parse: terima variasi format tanggal, kosong -> NaT
-    return pd.to_datetime(s.astype(str).str.strip().replace({"": None, "nan": None}), errors="coerce", dayfirst=True)
-
-def buat_buku_besar_periode(bulan: str, tahun: int) -> dict:
-    """
-    Bangun buku besar hanya untuk transaksi pada bulan/tahun terpilih.
-    Kunci tetap pakai Ref (fallback ke nama_akun jika Ref kosong).
-    """
-    df = st.session_state.data.copy()
-
-    # Parse tanggal dan filter periode
-    df["__tgl"] = _parse_tanggal_series(df.get("Tanggal", pd.Series(dtype=str)))
-    bln = int(bulan)
-    thn = int(tahun)
-    start = pd.Timestamp(thn, bln, 1)
-    end = pd.Timestamp(thn, bln, monthrange(thn, bln)[1])  # hari terakhir bulan
-    df = df[(df["__tgl"].notna()) & (df["__tgl"] >= start) & (df["__tgl"] <= end)]
-
-    # Normalisasi angka
-    for col in ["Debit (Rp)", "Kredit (Rp)"]:
-        df[col] = pd.to_numeric(df[col], errors="coerce").fillna(0.0)
-
-    buku_besar = {}
-    for _, row in df.iterrows():
-        ref = str(row.get("Ref", "")).strip()
-        nama_akun_jurnal = str(row.get("Akun", "")).strip()
-        key = ref if ref else nama_akun_jurnal
-        if not key:
-            continue
-
-        if key not in buku_besar:
-            buku_besar[key] = {
-                "nama_akun": nama_akun_jurnal if nama_akun_jurnal else f"Akun {key}",
-                "debit": 0.0,
-                "kredit": 0.0,
-                "transaksi": []
-            }
-
-        debit_val = float(row.get("Debit (Rp)", 0) or 0)
-        kredit_val = float(row.get("Kredit (Rp)", 0) or 0)
-        tanggal = "" if pd.isna(row.get("__tgl", "")) else str(row.get("__tgl", "").date())
-        keterangan = str(row.get("Keterangan", "")).strip()
-
-        if debit_val > 0:
-            buku_besar[key]["transaksi"].append({"tanggal": tanggal, "keterangan": keterangan, "debit": debit_val, "kredit": 0.0})
-            buku_besar[key]["debit"] += debit_val
-        if kredit_val > 0:
-            buku_besar[key]["transaksi"].append({"tanggal": tanggal, "keterangan": keterangan, "debit": 0.0, "kredit": kredit_val})
-            buku_besar[key]["kredit"] += kredit_val
-
-    return buku_besar
-
-def sync_neraca_from_bb(bb: dict, non_destructive: bool = True):
-    """
-    Sinkronkan Neraca Saldo dari buku besar yang diberikan (bb),
-    bukan dari st.session_state.buku_besar global. Aman untuk sinkron per-periode.
-    """
-    if not bb:
-        return
-
-    ns = st.session_state.get("neraca_saldo")
-    if ns is None or ns.empty:
-        ns = pd.DataFrame(columns=["Ref", "Akun", "Debit (Rp)", "Kredit (Rp)"])
-
-    ns["Ref"] = ns["Ref"].astype(str).str.strip()
-    ns["Akun"] = ns["Akun"].astype(str).str.strip()
-    ns["Debit (Rp)"] = pd.to_numeric(ns.get("Debit (Rp)", 0), errors="coerce").fillna(0.0)
-    ns["Kredit (Rp)"] = pd.to_numeric(ns.get("Kredit (Rp)", 0), errors="coerce").fillna(0.0)
-
-    idx_by_ref = {ns.loc[i, "Ref"]: i for i in ns.index if ns.loc[i, "Ref"]}
-
-    to_add = []
-    for ref, data in bb.items():
-        ref_str = str(ref).strip()
-        nama = data.get("nama_akun", f"Akun {ref_str}")
-        debit = float(data.get("debit", 0) or 0)
-        kredit = float(data.get("kredit", 0) or 0)
-        net_debit = max(debit - kredit, 0)
-        net_kredit = max(kredit - debit, 0)
-
-        if ref_str in idx_by_ref:
-            idx = idx_by_ref[ref_str]
-            ns.at[idx, "Akun"] = nama or ns.at[idx, "Akun"]
-            ns.at[idx, "Debit (Rp)"] = net_debit
-            ns.at[idx, "Kredit (Rp)"] = net_kredit
-        else:
-            to_add.append({"Ref": ref_str, "Akun": nama, "Debit (Rp)": net_debit, "Kredit (Rp)": net_kredit})
-
-    if to_add:
-        ns = pd.concat([ns, pd.DataFrame(to_add)], ignore_index=True)
-
-    if not non_destructive:
-        refs_bb = set(str(k).strip() for k in bb.keys())
-        ns = ns[ns["Ref"].astype(str).str.strip().isin(refs_bb)]
-
-    st.session_state.neraca_saldo = ns.reset_index(drop=True)
-
 
 # === Styling AgGrid ===
 st.markdown("""
@@ -601,11 +497,6 @@ with tab2:
         else:
             st.info("Tidak ada transaksi untuk akun ini.")
             
-if "neraca_saldo" not in st.session_state:
-    st.session_state.neraca_saldo = pd.DataFrame([
-        {"Ref": "", "Akun": "", "Debit (Rp)": 0, "Kredit (Rp)": 0}
-    ])
-sync_neraca_from_bukubesar(non_destructive=True)
 # ========================================
 # TAB 3: NERACA SALDO (REVISI LENGKAP)
 # ========================================
@@ -639,17 +530,20 @@ with tab3:
     # INFO
     st.info("💡 Neraca Saldo di bawah ini disinkron otomatis dari Buku Besar. ")
 
-    # Bangun Buku Besar khusus periode yang dipilih
-    bb_periode = buat_buku_besar_periode(bulan_neraca, tahun_neraca)
-    
-    # Auto-sync 
-    sync_neraca_from_bb(bb_periode, non_destructive=True)
+    # COUNTER
+    if "neraca_refresh_counter" not in st.session_state:
+        st.session_state.neraca_refresh_counter = 0
 
-    # Cek kalau Buku Besar periode ini kosong
-    if bb_periode is None or len(bb_periode) == 0:
-        st.info("ℹ️ Belum ada data untuk neraca saldo. Silakan isi Jurnal Umum terlebih dahulu.")
-        st.stop()   # ← hentikan eksekusi tab agar tidak lanjut ke bawah
-    
+    # 1) Pastikan buku_besar ada. Kalau Anda sudah build buku_besar di Tab 1, baris ini optional:
+    if "buku_besar" not in st.session_state:
+        st.session_state.buku_besar = buat_buku_besar()
+
+    # 2) AUTO SYNC SETIAP RERUN (tanpa signature, paling simpel dan pasti otomatis)
+    auto_sync = st.checkbox("Sinkron otomatis dari Buku Besar", value=True, key="auto_sync_neraca")
+    if auto_sync:
+        # non_destructive=True: baris manual tanpa Ref tidak dihapus
+        sync_neraca_from_bukubesar(non_destructive=True)
+
     # Tombol kontrol
     col1, col2, col3 = st.columns(3)
     
@@ -687,41 +581,9 @@ with tab3:
             st.rerun()
 
     # Info counter
-    # ————— Normalisasi aman untuk st.session_state.neraca_saldo —————
-    ns = st.session_state.get("neraca_saldo")
-    
-    # Pastikan selalu tipe DataFrame
-    if not isinstance(ns, pd.DataFrame):
-        st.warning("Session state neraca_saldo bukan DataFrame — memperbaiki otomatis.")
-        ns = pd.DataFrame([{"Ref": "", "Akun": "", "Debit (Rp)": 0, "Kredit (Rp)": 0}])
-    
-    # Bersihkan nama kolom dari spasi aneh
-    rename_map = {}
-    for col in ns.columns:
-        col_clean = col.lower().replace(" ", "").replace(".", "")
-        if col_clean in ["ref"]:
-            rename_map[col] = "Ref"
-        elif col_clean in ["akun", "account", "namaakun"]:
-            rename_map[col] = "Akun"
-        elif col_clean in ["debit(rp)", "debitrp", "debit"]:
-            rename_map[col] = "Debit (Rp)"
-        elif col_clean in ["kredit(rp)", "kreditrp", "kredit"]:
-            rename_map[col] = "Kredit (Rp)"
-    
-    ns = ns.rename(columns=rename_map)
-    
-    # Pastikan semua kolom ada
-    required_cols = ["Ref", "Akun", "Debit (Rp)", "Kredit (Rp)"]
-    for c in required_cols:
-        if c not in ns.columns:
-            ns[c] = "" if c in ["Ref", "Akun"] else 0
-    
-    # Pastikan kolom angka aman
-    ns["Debit (Rp)"] = pd.to_numeric(ns["Debit (Rp)"], errors="coerce").fillna(0)
-    ns["Kredit (Rp)"] = pd.to_numeric(ns["Kredit (Rp)"], errors="coerce").fillna(0)
-    
-    # Simpan kembali
-    st.session_state.neraca_saldo = ns.reset_index(drop=True)
+    total_rows = len(st.session_state.neraca_saldo)
+    filled_rows = len(st.session_state.neraca_saldo[st.session_state.neraca_saldo["Akun"].astype(str).str.strip() != ""])
+    st.caption(f"📊 Total Baris: {total_rows} | Terisi: {filled_rows} | Kosong: {total_rows - filled_rows}")
 
     # --- Sistem Penghapusan dengan Checkbox ---
     df_terisi = st.session_state.neraca_saldo[st.session_state.neraca_saldo["Akun"].astype(str).str.strip() != ""]
