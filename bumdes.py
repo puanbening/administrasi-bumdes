@@ -539,10 +539,7 @@ with tab3:
         st.session_state.buku_besar = buat_buku_besar()
 
     # 2) AUTO SYNC SETIAP RERUN (tanpa signature, paling simpel dan pasti otomatis)
-    auto_sync = st.checkbox("Sinkron otomatis dari Buku Besar", value=True, key="auto_sync_neraca")
-    if auto_sync:
-        # non_destructive=True: baris manual tanpa Ref tidak dihapus
-        sync_neraca_from_bukubesar(non_destructive=True)
+    sync_neraca_from_bukubesar(non_destructive=True)
 
     # Tombol kontrol
     col1, col2, col3 = st.columns(3)
